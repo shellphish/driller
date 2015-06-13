@@ -35,12 +35,6 @@ def branch_for_input(branch, inputstream):
     padded = inputstream.ljust(stdin_bytes_cnt, "\x00")
     pad_cnt = 0
     constraints = [ stdin_bytes == branch.state.BVV(padded) ] 
-    '''
-    for bit in range(0, stdin_bytes.length, 8)[::-1]:
-        upper_bit = bit + 7
-        constraints.append(stdin_bytes[upper_bit:bit] == ord(padded[pad_cnt]))
-        pad_cnt += 1
-    '''
 
     return branch.state.se.satisfiable(extra_constraints = constraints)
 
@@ -136,7 +130,7 @@ def main(argc, argv):
 
 
     # now that we've found some branches which our fuzzer missed, let's drill into them
-    alert("found %d basic blocks are fuzzer had trouble reaching, drilling into them!" % len(missed))
+    alert("found %d basic blocks our fuzzer had trouble reaching, drilling into them!" % len(missed))
 
     # here we would get fuzzer stats to figure out which input id these new inputs should
     # be
