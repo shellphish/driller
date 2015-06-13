@@ -3,6 +3,7 @@
 import angr
 import sys
 import termcolor
+import os
 
 def ok(s):
     status = termcolor.colored("*", "cyan", attrs=["bold"])
@@ -13,6 +14,9 @@ def die(s):
     print "[%s] %s" % (status, s)
     sys.exit(1)
 
+
+encountered = {}
+missed = {}
 
 def branch_for_input(branch, inputstream):
 
@@ -30,16 +34,16 @@ def branch_for_input(branch, inputstream):
 
     return branch.state.se.satisfiable(extra_constraints = constraints)
 
-def path_jump_targets(project, inputstream):
+def trace_branches(project, inputstream, fn):
 
 
     next_branch = project.path_generator.entry_point()
+    branches = windup_to_branch(next_branch)
 
-    while True:
-        branches = windup_to_branch(next_branch)
+    not_taken = [ ] 
+    taken = [ ] 
 
-        if len(branches) == 0:
-            return
+    while len(branches) == 2:
 
         branch1 = branches[0]
         branch2 = branches[1]
@@ -51,11 +55,29 @@ def path_jump_targets(project, inputstream):
 
         if branch1_taker:
             next_branch = branch1
+            missed_branch = branch2
         else:
             next_branch = branch2
+            missed_branch = branch1
 
-        print next_branch
+        not_taken.append(missed_branch)
+        taken.append(next_branch)
+        
+        # if we've encountered a branch we mark it
+        encountered[next_branch.addr] = fn
 
+        missed[next_branch.addr] = False
+
+        # if we just missed we check to see if another branch has encountered it
+        if missed.get(missed_branch.addr) == None:
+            # it appears no one has touched this branch we'll let every one know it's
+            # in sight for us
+            missed[missed_branch.addr] = fn
+
+        ok(next_branch)
+        branches = windup_to_branch(next_branch)
+
+    return (taken, not_taken)
 
 def windup_to_branch(path):
     '''
@@ -75,24 +97,25 @@ def windup_to_branch(path):
 
 def main(argc, argv):
     if (argc != 3):
-        print "usage: %s <binary> <inputfile>" % (argv[0])
+        print "usage: %s <binary> <inputdir>" % (argv[0])
         return 1
 
     binary = argv[1]
-    inputfile = argv[2]
+    inputdir = argv[2]
 
-    ok("drilling into %s with inputfile %s" % (binary, inputfile)) 
-    try:
-        inputstream = open(inputfile).read()
-    except IOError:
-        die("file \"%s\" does not exist" % inputfile)
+    ok("drilling into \"%s\" with inputs in \"%s\"" % (binary, inputdir)) 
+    if os.path.isdir(inputdir):
+        inputs = os.listdir(inputdir)
+    else:
+        die("no directory \"%s\" found" % inputfile)
 
     project = angr.Project(binary)
-    entry_point = project.path_generator.entry_point()
 
-    ok("entry point found at 0x%x" % entry_point.addr)
+    for inputfile in inputs:
+        path = os.path.join(inputdir, inputfile)
+        print trace_branches(project, open(path).read(), inputfile)
 
-    print path_jump_targets(project, inputstream)
+    print map(hex, filter(lambda v: missed[v], missed.keys()))
 
 
 if __name__ == "__main__":
