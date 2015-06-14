@@ -55,6 +55,7 @@ def trace_branches(project, inputstream, fn):
         branch1_taker = branch_for_input(branch1, inputstream)
         branch2_taker = branch_for_input(branch2, inputstream)
 
+        assert branch1_taker or branch2_taker
         assert not (branch1_taker and branch2_taker)
 
         if branch1_taker:
@@ -77,9 +78,12 @@ def trace_branches(project, inputstream, fn):
         # if we just missed we check to see if another branch has encountered it
         if missed_branch.addr not in encountered:
             # if not, let the system know we have this branch in our sights
-            missed[missed_branch.addr] = (missed_branch, fn)
+            if missed_branch.addr in missed:
+                missed[missed_branch.addr].append(missed_branch)
+            else:
+                missed[missed_branch.addr] = [missed_branch]
 
-        #ok(next_branch)
+        ok(next_branch)
         branches = windup_to_branch(next_branch)
 
     return (taken, not_taken)
@@ -112,6 +116,13 @@ def main(argc, argv):
     ok("drilling into \"%s\" with inputs in \"%s\"" % (binary, inputdir)) 
     if os.path.isdir(inputdir):
         inputs = os.listdir(inputdir)
+        pathed_inputs = [ ]   
+        for inp in inputs:
+            pathed_input = os.path.join(inputdir, inp)
+            if not os.path.isdir(pathed_input):
+                pathed_inputs.append(inp)
+            
+        inputs = pathed_inputs
     else:
         die("no directory \"%s\" found" % inputdir)
 
@@ -125,31 +136,36 @@ def main(argc, argv):
     project = angr.Project(binary)
 
     for inputfile in inputs:
+        ok("tracing input from \"%s\"" % inputfile)
         path = os.path.join(inputdir, inputfile)
         trace_branches(project, open(path).read(), inputfile)
 
 
     # now that we've found some branches which our fuzzer missed, let's drill into them
-    alert("found %d basic blocks our fuzzer had trouble reaching, drilling into them!" % len(missed))
+    alert("found %d basic block(s) our fuzzer had trouble reaching, drilling!" % len(missed))
 
-    # here we would get fuzzer stats to figure out which input id these new inputs should
-    # be
-    file_id = 0
+
+    alert("driller attempting to break into " + str(map(hex, missed.keys())))
 
     for missed_addr in missed:
-        angr_path, input_file = missed[missed_addr]
-        if angr_path.state.satisfiable():
-            filename = "driller-%d" % file_id
-            outname = os.path.join(outputdir, filename)
-            fp = open(outname, "w")
-            fp.write(angr_path.state.posix.dumps(0))
-            fp.close()
-            ok("new input in %s!" % outname)
-            file_id += 1
+        angr_paths = missed[missed_addr]
+        cur_path = 0
+        satisfied = False
+        while not satisfied and cur_path < len(angr_paths):
+            angr_path = angr_paths[cur_path]
+            if angr_path.state.satisfiable():
+                filename = "driller-%x" % angr_path.addr
+                outname = os.path.join(outputdir, filename)
+                fp = open(outname, "w")
+                fp.write(angr_path.state.posix.dumps(0))
+                fp.close()
+                ok("new input in %s!" % outname)
+                satisfied = True
 
-        else:
-            warning("path at %x is not satisfiable" % missed_addr)
-            continue
+            cur_path += 1
+
+        if not satisfied:
+            warning("path at 0x%x is not satisfiable" % missed_addr)
 
     ok("drilled inputs created and place in %s" % outputdir)
 
