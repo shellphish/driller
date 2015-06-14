@@ -1,0 +1,86 @@
+From 94612a57b287691249e9b73983cb2c30c1a4b6a3 Mon Sep 17 00:00:00 2001
+From: Nick 'mpizza' Stephens <nick.stephens93@gmail.com>
+Date: Sun, 14 Jun 2015 01:07:53 -0700
+Subject: [PATCH] Add driller modifications
+
+---
+ cpu-exec.c           | 13 +++++++++++--
+ driller-config       |  1 +
+ linux-user/elfload.c |  4 ++++
+ 3 files changed, 16 insertions(+), 2 deletions(-)
+ create mode 100755 driller-config
+
+diff --git a/cpu-exec.c b/cpu-exec.c
+index 2ffeb6e..48e1807 100644
+--- a/cpu-exec.c
++++ b/cpu-exec.c
+@@ -29,6 +29,8 @@
+ #include "qemu/rcu.h"
+ 
+ /* -icount align implementation. */
++uint64_t driller_code_start,
++        driller_code_end;
+ 
+ typedef struct SyncClocks {
+     int64_t diff_clk;
+@@ -493,16 +495,23 @@ int cpu_exec(CPUArchState *env)
+                     tcg_ctx.tb_ctx.tb_invalidated_flag = 0;
+                 }
+                 if (qemu_loglevel_mask(CPU_LOG_EXEC)) {
+-                    qemu_log("Trace %p [" TARGET_FMT_lx "] %s\n",
+-                             tb->tc_ptr, tb->pc, lookup_symbol(tb->pc));
++                    /* driller only cares about transitions in .text */
++                    if (tb->pc >= driller_code_start && tb->pc <= driller_code_end)
++                        qemu_log("Trace %p [" TARGET_FMT_lx "] %s\n",
++                                 tb->tc_ptr, tb->pc, lookup_symbol(tb->pc));
+                 }
+                 /* see if we can patch the calling TB. When the TB
+                    spans two pages, we cannot safely do a direct
+                    jump. */
++
++                /* driller needs to see every basic block transition */
++                /*
+                 if (next_tb != 0 && tb->page_addr[1] == -1) {
+                     tb_add_jump((TranslationBlock *)(next_tb & ~TB_EXIT_MASK),
+                                 next_tb & TB_EXIT_MASK, tb);
+                 }
++                */
++
+                 have_tb_lock = false;
+                 spin_unlock(&tcg_ctx.tb_ctx.tb_lock);
+ 
+diff --git a/driller-config b/driller-config
+new file mode 100755
+index 0000000..e77f4a1
+--- /dev/null
++++ b/driller-config
+@@ -0,0 +1 @@
++./configure --target-list=i386-linux-user,x86_64-linux-user
+diff --git a/linux-user/elfload.c b/linux-user/elfload.c
+index 399c021..69e3034 100644
+--- a/linux-user/elfload.c
++++ b/linux-user/elfload.c
+@@ -28,6 +28,8 @@
+ 
+ #define ELF_OSABI   ELFOSABI_SYSV
+ 
++extern uint64_t driller_code_start, driller_code_end;
++
+ /* from personality.h */
+ 
+ /*
+@@ -1922,9 +1924,11 @@ static void load_elf_image(const char *image_name, int image_fd,
+             if (elf_prot & PROT_EXEC) {
+                 if (vaddr < info->start_code) {
+                     info->start_code = vaddr;
++                    if (!driller_code_start) driller_code_start = vaddr;
+                 }
+                 if (vaddr_ef > info->end_code) {
+                     info->end_code = vaddr_ef;
++                    if (!driller_code_end) driller_code_end = vaddr_ef;
+                 }
+             }
+             if (elf_prot & PROT_WRITE) {
+-- 
+1.9.1
+
