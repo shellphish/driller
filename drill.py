@@ -61,18 +61,6 @@ def generate_qemu_trace(basedirectory, binary, inputfile):
 
     return tracelines
 
-def branch_for_input(branch, inputstream):
-
-    stdin_bytes = branch.state.posix.files[0].all_bytes()
-
-    stdin_bytes_cnt = stdin_bytes.length / 8
-
-    padded = inputstream.ljust(stdin_bytes_cnt, "\x00")
-    pad_cnt = 0
-    constraints = [ stdin_bytes == branch.state.BVV(padded) ] 
-
-    return branch.state.se.satisfiable(extra_constraints = constraints)
-
 def follow_trace_until_split(path, trace):
     '''
     trace is qemu's basic block trace so it will have slightly more information than
@@ -98,7 +86,7 @@ def follow_trace_until_split(path, trace):
             while trace[bb_cnt] != current.addr:
                 bb_cnt += 1
             bb_cnt += 1
-            #die("they disagree %x vs trace's %x" % (current.addr, trace[bb_cnt]))
+
         successors = current.successors
 
     return successors, trace[bb_cnt:]
@@ -112,7 +100,6 @@ def trace_branches(project, basedirectory, fn):
 
     next_branch = project.path_generator.entry_point()
 
-    #branches = windup_to_branch(next_branch)
     branches, bb_trace = follow_trace_until_split(next_branch, bb_trace)
 
     next_move = bb_trace[0]
@@ -162,28 +149,10 @@ def trace_branches(project, basedirectory, fn):
             else:
                 missed[missed_branch.addr] = [missed_branch]
 
-        ok(next_branch)
-        #branches = windup_to_branch(next_branch)
         branches, bb_trace = follow_trace_until_split(next_branch, bb_trace)
         next_move = bb_trace[0]
 
     return (taken, not_taken)
-
-def windup_to_branch(path):
-    '''
-    windup the path until we hit our first branch, return a list of branches
-    '''
-
-    current_path = path
-    branches = []
-    while len(branches) < 2:
-        branches = current_path.successors
-        try:
-            current_path = branches[0]
-        except IndexError:
-            return []
-
-    return branches
 
 def main(argc, argv):
     global binary_start_code, binary_end_code
