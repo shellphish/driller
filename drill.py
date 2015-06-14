@@ -4,6 +4,12 @@ import angr
 import sys
 import termcolor
 import os
+import tempfile
+import subprocess
+from IPython import embed
+
+binary_start_code = None
+binary_end_code = None
 
 def ok(s):
     status = termcolor.colored("*", "cyan", attrs=["bold"])
@@ -26,6 +32,35 @@ def die(s):
 encountered = {}
 missed = {}
 
+def generate_qemu_trace(basedirectory, binary, inputfile):
+    qemu_path = os.path.join(basedirectory, "qemu", "qemu-x86_64")
+    _, logfile = tempfile.mkstemp(prefix="/dev/shm/driller-trace-")
+
+    # launch qemu asking it to trace the binary for us
+    args = [qemu_path, "-D", logfile, "-d", "exec", binary]
+
+    # feed it input
+    fp = open(inputfile)
+    dp = open("/dev/null")
+
+    # execute the process waiting for it to terminate
+    p = subprocess.Popen(args, stdin=fp, stdout=dp)
+    p.wait()
+
+    fp.close()
+    dp.close()
+
+    # read in the trace and remove the logfile
+    trace = open(logfile).read()
+    os.remove(logfile)
+
+    # parse the logfile to return a list of addresses
+    tracelines = trace.split("\n")
+    tracelines = filter(lambda v: v.startswith("Trace"), tracelines)
+    tracelines = map(lambda v: int(v.split("[")[1].split("]")[0], 16), tracelines)
+
+    return tracelines
+
 def branch_for_input(branch, inputstream):
 
     stdin_bytes = branch.state.posix.files[0].all_bytes()
@@ -38,22 +73,66 @@ def branch_for_input(branch, inputstream):
 
     return branch.state.se.satisfiable(extra_constraints = constraints)
 
-def trace_branches(project, inputstream, fn):
+def follow_trace_until_split(path, trace):
+    '''
+    trace is qemu's basic block trace so it will have slightly more information than
+    we would like.
 
+    we return the possible branches and an updated trace 
+    '''
+
+    bb_cnt = 0
+    successors = [path]
+
+    while len(successors) == 1:
+        current = successors[0]
+        if current.addr == trace[bb_cnt]: # the trace and angr agrees, just increment cnt
+            bb_cnt += 1
+        elif current.addr < binary_start_code or current.addr > binary_end_code:
+            # a library or a simprocedure, we'll ignore it
+            pass
+        else:
+            # the trace and angr are out of sync, likely the trace is more verbose than
+            # angr and the actual occurance of the path is later on, so we wind up
+            # the trace until we hit the current address
+            while trace[bb_cnt] != current.addr:
+                bb_cnt += 1
+            bb_cnt += 1
+            #die("they disagree %x vs trace's %x" % (current.addr, trace[bb_cnt]))
+        successors = current.successors
+
+    return successors, trace[bb_cnt:]
+
+
+def trace_branches(project, basedirectory, fn):
+
+    # get the basic block trace from qemu, this will differ slighting from angr's jump 
+    # trace
+    bb_trace = generate_qemu_trace(basedirectory, project.filename, fn)
 
     next_branch = project.path_generator.entry_point()
-    branches = windup_to_branch(next_branch)
+
+    #branches = windup_to_branch(next_branch)
+    branches, bb_trace = follow_trace_until_split(next_branch, bb_trace)
+
+    next_move = bb_trace[0]
 
     not_taken = [ ] 
     taken = [ ] 
+
+    inputstream = open(fn).read()
 
     while len(branches) == 2:
 
         branch1 = branches[0]
         branch2 = branches[1]
 
-        branch1_taker = branch_for_input(branch1, inputstream)
-        branch2_taker = branch_for_input(branch2, inputstream)
+        branch1_taker = False
+        branch2_taker = False 
+        if next_move == branch1.addr:
+            branch1_taker = True
+        if next_move == branch2.addr:
+            branch2_taker = True
 
         assert branch1_taker or branch2_taker
         assert not (branch1_taker and branch2_taker)
@@ -84,7 +163,9 @@ def trace_branches(project, inputstream, fn):
                 missed[missed_branch.addr] = [missed_branch]
 
         ok(next_branch)
-        branches = windup_to_branch(next_branch)
+        #branches = windup_to_branch(next_branch)
+        branches, bb_trace = follow_trace_until_split(next_branch, bb_trace)
+        next_move = bb_trace[0]
 
     return (taken, not_taken)
 
@@ -105,6 +186,8 @@ def windup_to_branch(path):
     return branches
 
 def main(argc, argv):
+    global binary_start_code, binary_end_code
+
     if (argc != 4):
         print "usage: %s <binary> <inputdir> <outputdir>" % (argv[0])
         return 1
@@ -134,11 +217,14 @@ def main(argc, argv):
 
 
     project = angr.Project(binary)
+    binary_start_code = project.ld.main_bin.get_min_addr()
+    binary_end_code = project.ld.main_bin.get_max_addr()
+    basedirectory = os.path.dirname(argv[0])
 
     for inputfile in inputs:
         ok("tracing input from \"%s\"" % inputfile)
         path = os.path.join(inputdir, inputfile)
-        trace_branches(project, open(path).read(), inputfile)
+        trace_branches(project, basedirectory, path)
 
 
     # now that we've found some branches which our fuzzer missed, let's drill into them
