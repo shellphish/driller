@@ -6,6 +6,8 @@ import termcolor
 import os
 import tempfile
 import subprocess
+import simuvex
+from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 from IPython import embed
 
 binary_start_code = None
@@ -31,6 +33,41 @@ def die(s):
 
 encountered = {}
 missed = {}
+
+class SymbolicRead(simuvex.SimProcedure):
+    '''
+    A custom version of read which has a symbolic return value.
+    '''
+
+    def run(self, fd, dst, length):
+        self.argument_types = {0: SimTypeFd(),
+                               1: self.ty_ptr(SimTypeArray(SimTypeChar(), length)),
+                               2: SimTypeLength(self.state.arch)}
+        self.return_type = SimTypeLength(self.state.arch)
+
+        if self.state.se.max_int(length) == 0:
+            return self.state.se.BVV(0, self.state.arch.bits)
+
+        sym_length = self.state.se.BV("read_length", self.state.arch.bits)
+
+        self.state.se.add(sym_length <= length)
+
+        self.state.se.add(sym_length >= 0)
+
+        _ = self.state.posix.pos(fd)
+        data = self.state.posix.read(fd, sym_length)
+        self.state.store_mem(dst, data)
+        return sym_length
+
+
+def patch_symbolic_read(proj):
+    '''
+    patch in a custom symbolic read into the loader 
+    '''
+
+    main_bin = proj.main_binary
+    proj.set_sim_procedure(main_bin, "read", SymbolicRead, None)
+
 
 def generate_qemu_trace(basedirectory, binary, inputfile):
     qemu_path = os.path.join(basedirectory, "qemu", "qemu-x86_64")
@@ -98,7 +135,7 @@ def trace_branches(project, basedirectory, fn):
     # trace
     bb_trace = generate_qemu_trace(basedirectory, project.filename, fn)
 
-    next_branch = project.path_generator.entry_point()
+    next_branch = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
 
     branches, bb_trace = follow_trace_until_split(next_branch, bb_trace)
 
@@ -186,6 +223,7 @@ def main(argc, argv):
 
 
     project = angr.Project(binary)
+    patch_symbolic_read(project)
     binary_start_code = project.ld.main_bin.get_min_addr()
     binary_end_code = project.ld.main_bin.get_max_addr()
     basedirectory = os.path.dirname(argv[0])
