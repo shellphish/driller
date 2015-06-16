@@ -55,7 +55,8 @@ class SymbolicRead(simuvex.SimProcedure):
         self.state.se.add(sym_length >= 0)
 
         _ = self.state.posix.pos(fd)
-        data = self.state.posix.read(fd, sym_length)
+        #data = self.state.posix.read(fd, sym_length)
+        data = self.state.posix.read(fd, length)
         self.state.store_mem(dst, data)
         return sym_length
 
@@ -128,6 +129,21 @@ def follow_trace_until_split(path, trace):
 
     return successors, trace[bb_cnt:]
 
+def update_trace_progress(numerator, denominator):
+    bar_length = 50
+
+    current = int((float(numerator) / float(denominator)) * bar_length)
+    
+    #print current
+    #print (bar_length - current)
+    #print current + (bar_length - current)
+    complete  = "=" * current
+    if numerator != 0:
+        complete = complete[:current-1] + ">"
+    remainder = (bar_length - current) * " "
+
+    print "[%s%s]\r" % (complete, remainder), 
+    sys.stdout.flush()
 
 def trace_branches(project, basedirectory, fn):
 
@@ -135,18 +151,22 @@ def trace_branches(project, basedirectory, fn):
     # trace
     bb_trace = generate_qemu_trace(basedirectory, project.filename, fn)
 
+    total_length = len(bb_trace)
+
     next_branch = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
 
-    branches, bb_trace = follow_trace_until_split(next_branch, bb_trace)
+    multiple_branches = True
+    while multiple_branches:
 
-    next_move = bb_trace[0]
+        update_trace_progress(total_length - len(bb_trace), total_length)
 
-    not_taken = [ ] 
-    taken = [ ] 
+        branches, bb_trace = follow_trace_until_split(next_branch, bb_trace)
+        next_move = bb_trace[0]
 
-    inputstream = open(fn).read()
-
-    while len(branches) == 2:
+        multiple_branches = len(branches) > 1
+        if not multiple_branches:
+            print "[%s]" % (("=" * 49) + ">")
+            break
 
         branch1 = branches[0]
         branch2 = branches[1]
@@ -168,9 +188,6 @@ def trace_branches(project, basedirectory, fn):
             next_branch = branch2
             missed_branch = branch1
 
-        not_taken.append(missed_branch)
-        taken.append(next_branch)
-        
         # if we've encountered a branch we mark it
         encountered[next_branch.addr] = fn
 
@@ -186,10 +203,7 @@ def trace_branches(project, basedirectory, fn):
             else:
                 missed[missed_branch.addr] = [missed_branch]
 
-        branches, bb_trace = follow_trace_until_split(next_branch, bb_trace)
-        next_move = bb_trace[0]
-
-    return (taken, not_taken)
+    return
 
 def main(argc, argv):
     global binary_start_code, binary_end_code
