@@ -7,11 +7,16 @@ import os
 import tempfile
 import subprocess
 import simuvex
+import time
 from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 from IPython import embed
 
 binary_start_code = None
 binary_end_code = None
+
+outputdir = None
+inputdir = None
+binary = None
 
 def ok(s):
     status = termcolor.colored("*", "cyan", attrs=["bold"])
@@ -106,8 +111,14 @@ def accumulate_traces(basedirectory, binary, inputs):
     alert("accumulating traces for all %d inputs" % len(inputs))
 
     for inputfile in inputs:
-        #full_inputfile = os.path.join(
-        qemu_traces[inputfile] = generate_qemu_trace(basedirectory, binary, inputfile)
+        traces = generate_qemu_trace(basedirectory, binary, inputfile) 
+        qemu_traces[inputfile] = traces
+
+        # let's just populate encountered now
+        for trace in traces:
+            if trace not in encountered:
+                encountered[trace] = inputfile
+        
 
 def in_any_trace(addr):
     for trace_f in qemu_traces:
@@ -200,30 +211,28 @@ def trace_branches(project, basedirectory, fn):
             next_branch = branch2
             missed_branch = branch1
 
-        # if we've encountered a branch we mark it
-        encountered[next_branch.addr] = fn
-
-        # remove branch we encountered from our missed branches dict
-        if next_branch.addr in missed:
-            del missed[next_branch.addr]
-
         # if we just missed we check to see if another branch has encountered it
         # this *should* be a fast check because it's a hashmap
         if missed_branch.addr not in encountered:
-            # because of memory issues we also make sure it isn't in any of the traces 
-            if not in_any_trace(missed_branch.addr):
-                # final check, is it even satisfiable?
-                if missed_branch.state.satisfiable():
-                    # possible we could just generate the new input here
-                    if missed_branch.addr in missed:
-                        missed[missed_branch.addr].append(missed_branch)
-                    else:
-                        missed[missed_branch.addr] = [missed_branch]
+            # before we waste any memory on this guy, make sure it's reachable
+            if missed_branch.state.satisfiable():
+                # possible we could just generate the new input here
+                fpath = os.path.abspath(outputdir)
+                _, greedy = tempfile.mkstemp(prefix="%s/%s-%x-" % (fpath, "driller-greedy", missed_branch.addr))
+                gfp = open(greedy, "w")
+                gfp.write(missed_branch.state.posix.dumps(0)) 
+                gfp.close()
+                ok("driller greedily found a new input in %s @ %s" % (greedy, time.ctime()))
+                if missed_branch.addr in missed:
+                    missed[missed_branch.addr].append(missed_branch)
+                else:
+                    missed[missed_branch.addr] = [missed_branch]
 
     return
 
 def main(argc, argv):
     global binary_start_code, binary_end_code
+    global outputdir, inputdir, binary
 
     if (argc != 4):
         print "usage: %s <binary> <inputdir> <outputdir>" % (argv[0])
@@ -234,6 +243,7 @@ def main(argc, argv):
     outputdir = argv[3]
 
     ok("drilling into \"%s\" with inputs in \"%s\"" % (binary, inputdir)) 
+    alert("started at %s" % time.ctime())
     if os.path.isdir(inputdir):
         inputs = os.listdir(inputdir)
         pathed_inputs = [ ]   
