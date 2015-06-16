@@ -220,7 +220,11 @@ def main(argc, argv):
     except OSError:
         if not os.path.isdir(outputdir):
             die("cannot make output directory \"%s\"" % outputdir)
-
+        else:
+            alert("outputdir already exists, removing contents for convience")
+            for f in os.listdir(outputdir):
+                fpath = os.path.join(outputdir, f)
+                os.remove(fpath)
 
     project = angr.Project(binary)
     patch_symbolic_read(project)
