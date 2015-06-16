@@ -246,10 +246,12 @@ def main(argc, argv):
     binary_end_code = project.ld.main_bin.get_max_addr()
     basedirectory = os.path.dirname(argv[0])
 
+    trace_cnt = 0
     for inputfile in inputs:
-        ok("tracing input from \"%s\"" % inputfile)
+        ok("[%02d/%d] tracing input from \"%s\"" % (trace_cnt, len(inputs), inputfile))
         path = os.path.join(inputdir, inputfile)
         trace_branches(project, basedirectory, path)
+        trace_cnt += 1
 
 
     # now that we've found some branches which our fuzzer missed, let's drill into them
