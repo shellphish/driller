@@ -33,6 +33,7 @@ def die(s):
 
 encountered = {}
 missed = {}
+qemu_traces = {}
 
 class SymbolicRead(simuvex.SimProcedure):
     '''
@@ -99,7 +100,23 @@ def generate_qemu_trace(basedirectory, binary, inputfile):
 
     return tracelines
 
-def follow_trace_until_split(path, trace):
+def accumulate_traces(basedirectory, binary, inputs):
+    global qemu_traces
+
+    alert("accumulating traces for all %d inputs" % len(inputs))
+
+    for inputfile in inputs:
+        #full_inputfile = os.path.join(
+        qemu_traces[inputfile] = generate_qemu_trace(basedirectory, binary, inputfile)
+
+def in_any_trace(addr):
+    for trace_f in qemu_traces:
+        if addr in qemu_traces[trace_f]:
+            return True
+
+    return False
+
+def follow_trace_until_split(path, trace, total_length):
     '''
     trace is qemu's basic block trace so it will have slightly more information than
     we would like.
@@ -112,6 +129,7 @@ def follow_trace_until_split(path, trace):
 
     while len(successors) == 1:
         current = successors[0]
+        update_trace_progress(total_length - (len(trace) - bb_cnt), total_length)
         if current.addr == trace[bb_cnt]: # the trace and angr agrees, just increment cnt
             bb_cnt += 1
         elif current.addr < binary_start_code or current.addr > binary_end_code:
@@ -134,12 +152,7 @@ def update_trace_progress(numerator, denominator):
 
     current = int((float(numerator) / float(denominator)) * bar_length)
     
-    #print current
-    #print (bar_length - current)
-    #print current + (bar_length - current)
-    complete  = "=" * current
-    if numerator != 0:
-        complete = complete[:current-1] + ">"
+    complete  = "#" * current
     remainder = (bar_length - current) * " "
 
     print "[%s%s]\r" % (complete, remainder), 
@@ -149,7 +162,7 @@ def trace_branches(project, basedirectory, fn):
 
     # get the basic block trace from qemu, this will differ slighting from angr's jump 
     # trace
-    bb_trace = generate_qemu_trace(basedirectory, project.filename, fn)
+    bb_trace = qemu_traces[fn]
 
     total_length = len(bb_trace)
 
@@ -158,14 +171,13 @@ def trace_branches(project, basedirectory, fn):
     multiple_branches = True
     while multiple_branches:
 
-        update_trace_progress(total_length - len(bb_trace), total_length)
 
-        branches, bb_trace = follow_trace_until_split(next_branch, bb_trace)
+        branches, bb_trace = follow_trace_until_split(next_branch, bb_trace, total_length)
         next_move = bb_trace[0]
 
         multiple_branches = len(branches) > 1
         if not multiple_branches:
-            print "[%s]" % (("=" * 49) + ">")
+            print "[%s]" % ("#" * 50)
             break
 
         branch1 = branches[0]
@@ -196,12 +208,17 @@ def trace_branches(project, basedirectory, fn):
             del missed[next_branch.addr]
 
         # if we just missed we check to see if another branch has encountered it
+        # this *should* be a fast check because it's a hashmap
         if missed_branch.addr not in encountered:
-            # if not, let the system know we have this branch in our sights
-            if missed_branch.addr in missed:
-                missed[missed_branch.addr].append(missed_branch)
-            else:
-                missed[missed_branch.addr] = [missed_branch]
+            # because of memory issues we also make sure it isn't in any of the traces 
+            if not in_any_trace(missed_branch.addr):
+                # final check, is it even satisfiable?
+                if missed_branch.state.satisfiable():
+                    # possible we could just generate the new input here
+                    if missed_branch.addr in missed:
+                        missed[missed_branch.addr].append(missed_branch)
+                    else:
+                        missed[missed_branch.addr] = [missed_branch]
 
     return
 
@@ -223,7 +240,7 @@ def main(argc, argv):
         for inp in inputs:
             pathed_input = os.path.join(inputdir, inp)
             if not os.path.isdir(pathed_input):
-                pathed_inputs.append(inp)
+                pathed_inputs.append(pathed_input)
             
         inputs = pathed_inputs
     else:
@@ -246,11 +263,12 @@ def main(argc, argv):
     binary_end_code = project.ld.main_bin.get_max_addr()
     basedirectory = os.path.dirname(argv[0])
 
+    accumulate_traces(basedirectory, project.filename, inputs)
+
     trace_cnt = 0
     for inputfile in inputs:
-        ok("[%02d/%d] tracing input from \"%s\"" % (trace_cnt, len(inputs), inputfile))
-        path = os.path.join(inputdir, inputfile)
-        trace_branches(project, basedirectory, path)
+        ok("[%02d/%d] tracing input from \"%s\"" % (trace_cnt + 1, len(inputs), inputfile))
+        trace_branches(project, basedirectory, inputfile)
         trace_cnt += 1
 
 
