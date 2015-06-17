@@ -1,92 +1,188 @@
-68a69
->           *driller_path,              /* Location of driller executable   */
-74a76
->           *target_binary_path,        /* Path to target binary, not qemu  */
-156c158,159
-<            blocks_eff_select;         /* Blocks selected as fuzzable      */
----
->            blocks_eff_select,         /* Blocks selected as fuzzable      */
->            driller_invokations;       /* Number of driller invokations    */
-1245c1248
-< static void read_testcases(void) {
----
-> static void read_testcases(char *in_dir) {
-3950a3954,3955
-> 
-> 
-3982c3987,3992
-<   SAYF(bV bSTOP "        trim : " cNOR "%-37s " bSTG bVR bH20 bH2 bH2 bRB "\n"
----
->   //SAYF(bV bSTOP "        trim : " cNOR "%-37s " bSTG bVR bH20 bH2 bH2 bRB "\n"
->   //     bLB bH30 bH20 bH2 bH bRB bSTOP cRST RESET_G1, tmp);
-> 
-> 
->   sprintf(tmp, "%s", DI(driller_invokations));
->   SAYF(bV bSTOP "     driller : " cNOR "%-37s " bSTG bVR bH20 bH2 bH2 bRB "\n"
-3984a3995
-> 
-7259a7271,7308
-> /* Functions for driller */
-> void invoke_driller(void)
-> {
->     pid_t driller_pid;
->     int status = 0;
->     char *argv[5];
-> 
->     printf("[!] driller being invoked!\n");
-> 
->     argv[0] = driller_path;
->     argv[1] = target_binary_path;
->     argv[2] = alloc_printf("%s/queue", out_dir);
->     argv[3] = "driller_output";
->     argv[4] = NULL;
-> 
-> 
->     driller_pid = fork();
->     if (driller_pid == 0)
->     {
->         execve(driller_path, argv, environ);
->         exit(1); 
->     }
-> 
->     if (driller_pid < 0)
->     {
->         perror("failed to invoke driller");
->     }  
->     else
->     {
->         if (waitpid(driller_pid, &status, 0) != driller_pid)
->         {
->             perror("waitpid");
->         }
->         /* everything in driller_output get's added to the queue */
->         read_testcases("driller_output");
->         driller_invokations++;
->     }  
-> }
-7277c7326
-<   while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:Q")) > 0)
----
->   while ((opt = getopt(argc, argv, "+i:o:D:f:m:t:T:dnCB:S:M:x:Q")) > 0)
-7295a7345,7350
->       case 'D': /* driller */
-> 
->         if (driller_path) FATAL("Multiple -D options not supported");
->         driller_path = optarg;
->         break;
-> 
-7473c7528
-<   read_testcases();
----
->   read_testcases(in_dir);
-7489a7545
->   target_binary_path = argv[optind];
-7558a7615,7622
-> 
->     /* when AFL goes blue we invoke driller */
->     if (cycles_wo_finds > 0 && unique_crashes == 0)
->     {
->         invoke_driller();
->         cycles_wo_finds = 0;
->         printf("\e[1;1H\e[2J"); // clear screen
->     } 
+--- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
++++ afl-fuzz.c	2015-06-17 00:52:19.211869387 -0700
+@@ -66,12 +66,14 @@
+ static u8 *in_dir,                    /* Input directory with test cases  */
+           *out_file,                  /* File to fuzz, if any             */
+           *out_dir,                   /* Working & output directory       */
++          *driller_path,              /* Location of driller executable   */
+           *sync_dir,                  /* Synchronization directory        */
+           *sync_id,                   /* Fuzzer ID                        */
+           *use_banner,                /* Display banner                   */
+           *in_bitmap,                 /* Input bitmap                     */
+           *doc_path,                  /* Path to documentation dir        */
+           *target_path,               /* Path to target binary            */
++          *target_binary_path,        /* Path to target binary, not qemu  */
+           *orig_cmdline;              /* Original command line            */
+ 
+ static u32 exec_tmout = EXEC_TIMEOUT; /* Configurable exec timeout (ms)   */
+@@ -153,7 +155,8 @@
+            bytes_trim_in,             /* Bytes coming into the trimmer    */
+            bytes_trim_out,            /* Bytes coming outa the trimmer    */
+            blocks_eff_total,          /* Blocks subject to effector maps  */
+-           blocks_eff_select;         /* Blocks selected as fuzzable      */
++           blocks_eff_select,         /* Blocks selected as fuzzable      */
++           driller_invokations;       /* Number of driller invokations    */
+ 
+ static u32 subseq_hangs;              /* Number of hangs in a row         */
+ 
+@@ -532,7 +535,7 @@
+   fn = alloc_printf("%s/queue/.state/deterministic_done/%s", out_dir, fn + 1);
+ 
+   fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
+-  if (fd < 0) PFATAL("Unable to create '%s'", fn);
++  //if (fd < 0) PFATAL("Unable to create '%s'", fn);
+   close(fd);
+ 
+   ck_free(fn);
+@@ -555,7 +558,7 @@
+   if (symlink(ldest, fn)) {
+ 
+     s32 fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
+-    if (fd < 0) PFATAL("Unable to create '%s'", fn);
++    //if (fd < 0) PFATAL("Unable to create '%s'", fn);
+     close(fd);
+ 
+   }
+@@ -586,7 +589,7 @@
+   if (state) {
+ 
+     fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
+-    if (fd < 0) PFATAL("Unable to create '%s'", fn);
++    //if (fd < 0) PFATAL("Unable to create '%s'", fn);
+     close(fd);
+ 
+   } else {
+@@ -1242,7 +1245,7 @@
+ /* Read all testcases from the input directory, then queue them for testing.
+    Called at startup. */
+ 
+-static void read_testcases(void) {
++static void read_testcases(char *in_dir) {
+ 
+   struct dirent **nl;
+   s32 nl_cnt;
+@@ -3948,6 +3951,8 @@
+        "  variable : %s%-10s " bSTG bV "\n", tmp, queued_variable ? cLRD : cNOR,
+       no_var_check ? (u8*)"n/a" : DI(queued_variable));
+ 
++
++
+   if (!bytes_trim_out) {
+ 
+     sprintf(tmp, "n/a, ");
+@@ -3979,9 +3984,15 @@
+ 
+   }
+ 
+-  SAYF(bV bSTOP "        trim : " cNOR "%-37s " bSTG bVR bH20 bH2 bH2 bRB "\n"
++  //SAYF(bV bSTOP "        trim : " cNOR "%-37s " bSTG bVR bH20 bH2 bH2 bRB "\n"
++  //     bLB bH30 bH20 bH2 bH bRB bSTOP cRST RESET_G1, tmp);
++
++
++  sprintf(tmp, "%s", DI(driller_invokations));
++  SAYF(bV bSTOP "     driller : " cNOR "%-37s " bSTG bVR bH20 bH2 bH2 bRB "\n"
+        bLB bH30 bH20 bH2 bH bRB bSTOP cRST RESET_G1, tmp);
+ 
++
+   /* Provide some CPU utilization stats. */
+ 
+   if (cpu_core_count) {
+@@ -7257,6 +7268,44 @@
+ 
+ }
+ 
++/* Functions for driller */
++void invoke_driller(void)
++{
++    pid_t driller_pid;
++    int status = 0;
++    char *argv[5];
++
++    printf("[!] driller being invoked!\n");
++
++    argv[0] = driller_path;
++    argv[1] = target_binary_path;
++    argv[2] = alloc_printf("%s/queue", out_dir);
++    argv[3] = "driller_output";
++    argv[4] = NULL;
++
++
++    driller_pid = fork();
++    if (driller_pid == 0)
++    {
++        execve(driller_path, argv, environ);
++        exit(1); 
++    }
++
++    if (driller_pid < 0)
++    {
++        perror("failed to invoke driller");
++    }  
++    else
++    {
++        if (waitpid(driller_pid, &status, 0) != driller_pid)
++        {
++            perror("waitpid");
++        }
++        /* everything in driller_output get's added to the queue */
++        read_testcases("driller_output");
++        driller_invokations++;
++    }  
++}
+ 
+ /* Main entry point */
+ 
+@@ -7274,7 +7323,7 @@
+ 
+   doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
+ 
+-  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:Q")) > 0)
++  while ((opt = getopt(argc, argv, "+i:o:D:f:m:t:T:dnCB:S:M:x:Q")) > 0)
+ 
+     switch (opt) {
+ 
+@@ -7293,6 +7342,12 @@
+         out_dir = optarg;
+         break;
+ 
++      case 'D': /* driller */
++
++        if (driller_path) FATAL("Multiple -D options not supported");
++        driller_path = optarg;
++        break;
++
+       case 'M':
+ 
+         force_deterministic = 1;
+@@ -7470,7 +7525,7 @@
+   setup_shm();
+ 
+   setup_dirs_fds();
+-  read_testcases();
++  read_testcases(in_dir);
+   load_auto();
+ 
+   pivot_inputs();
+@@ -7487,6 +7542,7 @@
+ 
+   start_time = get_cur_time();
+ 
++  target_binary_path = argv[optind];
+   if (qemu_mode)
+     use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
+   else
+@@ -7557,6 +7613,14 @@
+ 
+     skipped_fuzz = fuzz_one(use_argv);
+ 
++    /* when AFL goes blue we invoke driller */
++    if (cycles_wo_finds > 0 && unique_crashes == 0)
++    {
++        invoke_driller();
++        cycles_wo_finds = 0;
++        printf("\e[1;1H\e[2J"); // clear screen
++    } 
++
+     if (!stop_soon && sync_id && !skipped_fuzz) {
+       
+       if (!(sync_interval_cnt++ % SYNC_INTERVAL))
