@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-06-17 00:52:19.211869387 -0700
++++ afl-fuzz.c	2015-06-17 01:32:31.515871773 -0700
 @@ -66,12 +66,14 @@
  static u8 *in_dir,                    /* Input directory with test cases  */
            *out_file,                  /* File to fuzz, if any             */
@@ -61,6 +61,15 @@
  
    struct dirent **nl;
    s32 nl_cnt;
+@@ -2696,7 +2699,7 @@
+   if (sfd < 0) PFATAL("Unable to open '%s'", old_path);
+ 
+   dfd = open(new_path, O_WRONLY | O_CREAT | O_EXCL, 0600);
+-  if (dfd < 0) PFATAL("Unable to create '%s'", new_path);
++  if (dfd < 0) { return; } // PFATAL("Unable to create '%s'", new_path);
+ 
+   tmp = ck_alloc(64 * 1024);
+ 
 @@ -3948,6 +3951,8 @@
         "  variable : %s%-10s " bSTG bV "\n", tmp, queued_variable ? cLRD : cNOR,
        no_var_check ? (u8*)"n/a" : DI(queued_variable));
@@ -87,7 +96,7 @@
    /* Provide some CPU utilization stats. */
  
    if (cpu_core_count) {
-@@ -7257,6 +7268,44 @@
+@@ -7257,6 +7268,45 @@
  
  }
  
@@ -126,13 +135,14 @@
 +        }
 +        /* everything in driller_output get's added to the queue */
 +        read_testcases("driller_output");
++        pivot_inputs();
 +        driller_invokations++;
 +    }  
 +}
  
  /* Main entry point */
  
-@@ -7274,7 +7323,7 @@
+@@ -7274,7 +7324,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -141,7 +151,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7342,12 @@
+@@ -7293,6 +7343,12 @@
          out_dir = optarg;
          break;
  
@@ -154,7 +164,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7525,7 @@
+@@ -7470,7 +7526,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -163,7 +173,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7542,7 @@
+@@ -7487,6 +7543,7 @@
  
    start_time = get_cur_time();
  
@@ -171,7 +181,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7613,14 @@
+@@ -7557,6 +7614,14 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
