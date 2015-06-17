@@ -66,18 +66,8 @@ class SymbolicRead(simuvex.SimProcedure):
         self.state.store_mem(dst, data)
         return sym_length
 
-
-def patch_symbolic_read(proj):
-    '''
-    patch in a custom symbolic read into the loader 
-    '''
-
-    main_bin = proj.main_binary
-    proj.set_sim_procedure(main_bin, "read", SymbolicRead, None)
-
-
 def generate_qemu_trace(basedirectory, binary, inputfile):
-    qemu_path = os.path.join(basedirectory, "qemu", "qemu-x86_64")
+    qemu_path = os.path.join(basedirectory, "../driller_qemu", "driller-qemu-x86_64")
     _, logfile = tempfile.mkstemp(prefix="/dev/shm/driller-trace-")
 
     # launch qemu asking it to trace the binary for us
@@ -119,45 +109,6 @@ def accumulate_traces(basedirectory, binary, inputs):
             if trace not in encountered:
                 encountered[trace] = inputfile
         
-
-def in_any_trace(addr):
-    for trace_f in qemu_traces:
-        if addr in qemu_traces[trace_f]:
-            return True
-
-    return False
-
-def follow_trace_until_split(path, trace, total_length):
-    '''
-    trace is qemu's basic block trace so it will have slightly more information than
-    we would like.
-
-    we return the possible branches and an updated trace 
-    '''
-
-    bb_cnt = 0
-    successors = [path]
-
-    while len(successors) == 1:
-        current = successors[0]
-        update_trace_progress(total_length - (len(trace) - bb_cnt), total_length)
-        if current.addr == trace[bb_cnt]: # the trace and angr agrees, just increment cnt
-            bb_cnt += 1
-        elif current.addr < binary_start_code or current.addr > binary_end_code:
-            # a library or a simprocedure, we'll ignore it
-            pass
-        else:
-            # the trace and angr are out of sync, likely the trace is more verbose than
-            # angr and the actual occurance of the path is later on, so we wind up
-            # the trace until we hit the current address
-            while trace[bb_cnt] != current.addr:
-                bb_cnt += 1
-            bb_cnt += 1
-
-        successors = current.successors
-
-    return successors, trace[bb_cnt:]
-
 def update_trace_progress(numerator, denominator):
     bar_length = 50
 
@@ -169,66 +120,70 @@ def update_trace_progress(numerator, denominator):
     print "[%s%s]\r" % (complete, remainder), 
     sys.stdout.flush()
 
-def trace_branches(project, basedirectory, fn):
+def constraint_trace(project, basedirectory, fn):
+    '''
+    Perform a trace on the binary in project with the input in fn.
+    '''
 
-    # get the basic block trace from qemu, this will differ slighting from angr's jump 
-    # trace
+    # get the basic block trace from qemu, this will differ slighting from angr's trace
     bb_trace = qemu_traces[fn]
-
     total_length = len(bb_trace)
 
-    next_branch = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+    parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+    trace_group = project.path_group(immutable=False, paths=[parent_path])
 
-    multiple_branches = True
-    while multiple_branches:
+    # branches this trace didn't take
+    trace_group.stashes['missed'] = [ ] 
 
+    while len(trace_group.stashes['active']) > 0:
 
-        branches, bb_trace = follow_trace_until_split(next_branch, bb_trace, total_length)
+        bb_cnt = 0
+        while len(trace_group.stashes['active']) == 1:
+            current = trace_group.stashes['active'][0]
+            update_trace_progress(total_length - (len(bb_trace) - bb_cnt), total_length)
+            if current.addr == bb_trace[bb_cnt]: # the trace and angr agrees, just increment cnt
+                bb_cnt += 1
+            elif current.addr < binary_start_code or current.addr > binary_end_code:
+                # a library or a simprocedure, we'll ignore it
+                pass
+            else:
+                # the trace and angr are out of sync, likely the trace is more verbose than
+                # angr and the actual occurance of the path is later on, so we wind up
+                # the trace until we hit the current address
+                while bb_trace[bb_cnt] != current.addr:
+                    bb_cnt += 1
+                bb_cnt += 1
+
+            trace_group.step()
+        bb_trace = bb_trace[bb_cnt:]
+
         next_move = bb_trace[0]
 
-        multiple_branches = len(branches) > 1
-        if not multiple_branches:
-            print "[%s]" % ("#" * 50)
-            break
+        trace_group.stash_not_addr(next_move, to_stash='missed')
 
-        branch1 = branches[0]
-        branch2 = branches[1]
-
-        branch1_taker = False
-        branch2_taker = False 
-        if next_move == branch1.addr:
-            branch1_taker = True
-        if next_move == branch2.addr:
-            branch2_taker = True
-
-        assert branch1_taker or branch2_taker
-        assert not (branch1_taker and branch2_taker)
-
-        if branch1_taker:
-            next_branch = branch1
-            missed_branch = branch2
-        else:
-            next_branch = branch2
-            missed_branch = branch1
+        assert len(trace_group.stashes['active']) < 2
 
         # if we just missed we check to see if another branch has encountered it
         # this *should* be a fast check because it's a hashmap
-        if missed_branch.addr not in encountered:
-            # before we waste any memory on this guy, make sure it's reachable
-            if missed_branch.state.satisfiable():
-                # possible we could just generate the new input here
-                fpath = os.path.abspath(outputdir)
-                _, greedy = tempfile.mkstemp(prefix="%s/%s-%x-" % (fpath, "driller-greedy", missed_branch.addr))
-                gfp = open(greedy, "w")
-                gfp.write(missed_branch.state.posix.dumps(0)) 
-                gfp.close()
-                ok("driller greedily found a new input in %s @ %s" % (greedy, time.ctime()))
-                if missed_branch.addr in missed:
-                    missed[missed_branch.addr].append(missed_branch)
-                else:
-                    missed[missed_branch.addr] = [missed_branch]
+        for missed_branch in trace_group.stashes['missed']:
+            if missed_branch.addr not in encountered:
+                # before we waste any memory on this guy, make sure it's reachable
+                if missed_branch.state.satisfiable():
+                    fpath = os.path.abspath(outputdir)
+                    _, greedy = tempfile.mkstemp(prefix="%s/%s-%x-" % (fpath, "driller-greedy", missed_branch.addr))
+                    gfp = open(greedy, "w")
+                    gfp.write(missed_branch.state.posix.dumps(0)) 
+                    gfp.close()
+                    ok("driller greedily found a new input in %s @ %s" % (greedy, time.ctime()))
+                    if missed_branch.addr in missed:
+                        missed[missed_branch.addr].append(missed_branch)
+                    else:
+                        missed[missed_branch.addr] = [missed_branch]
 
-    return
+        # drop missed branches
+        trace_group.drop(stash='missed')
+        
+    print "[%s]" % ("#" * 50)
 
 def main(argc, argv):
     global binary_start_code, binary_end_code
@@ -268,7 +223,12 @@ def main(argc, argv):
                 os.remove(fpath)
 
     project = angr.Project(binary)
-    patch_symbolic_read(project)
+
+    # unlike most projects we need to allow the possibility for read to return a range
+    # of values
+    project.set_sim_procedure(project.main_binary, "read", SymbolicRead, None)
+
+
     binary_start_code = project.ld.main_bin.get_min_addr()
     binary_end_code = project.ld.main_bin.get_max_addr()
     basedirectory = os.path.dirname(argv[0])
@@ -278,7 +238,7 @@ def main(argc, argv):
     trace_cnt = 0
     for inputfile in inputs:
         ok("[%02d/%d] tracing input from \"%s\"" % (trace_cnt + 1, len(inputs), inputfile))
-        trace_branches(project, basedirectory, inputfile)
+        constraint_trace(project, basedirectory, inputfile)
         trace_cnt += 1
 
 
