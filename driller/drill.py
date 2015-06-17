@@ -18,6 +18,9 @@ outputdir = None
 inputdir = None
 binary = None
 
+trace_cnt = 0
+total_traces = 0
+
 def ok(s):
     status = termcolor.colored("*", "cyan", attrs=["bold"])
     print "[%s] %s" % (status, s)
@@ -125,15 +128,15 @@ def accumulate_traces(basedirectory, binary, inputs):
             if trace not in encountered:
                 encountered[trace] = inputfile
         
-def update_trace_progress(numerator, denominator):
-    bar_length = 50
-
-    current = int((float(numerator) / float(denominator)) * bar_length)
+def update_trace_progress(numerator, denominator, fn, foundsomething):
+    pcomplete = int((float(numerator) / float(denominator)) * 100)
     
-    complete  = "#" * current
-    remainder = (bar_length - current) * " "
+    p = termcolor.colored("*", "cyan", attrs=["bold"])
+    excitement = ""
+    if foundsomething:
+        excitement = termcolor.colored("!", "green", attrs=["bold"])
 
-    print "[%s%s]\r" % (complete, remainder), 
+    print "[%s] trace %02d/%d, %3d%% complete, %s %s\r" % (p, trace_cnt + 1, total_traces, pcomplete, fn, excitement), 
     sys.stdout.flush()
 
 def constraint_trace(project, basedirectory, fn):
@@ -141,12 +144,19 @@ def constraint_trace(project, basedirectory, fn):
     Perform a trace on the binary in project with the input in fn.
     '''
 
+    fn_base = os.path.basename(fn)
+
     # get the basic block trace from qemu, this will differ slighting from angr's trace
     bb_trace = qemu_traces[fn]
     total_length = len(bb_trace)
 
     parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
     trace_group = project.path_group(immutable=False, paths=[parent_path])
+
+    # did this trace produce any interesting results?
+    found_one = False
+
+    update_trace_progress(0, total_length, fn_base, found_one)
 
     # branches this trace didn't take
     trace_group.stashes['missed'] = [ ] 
@@ -156,7 +166,7 @@ def constraint_trace(project, basedirectory, fn):
         bb_cnt = 0
         while len(trace_group.stashes['active']) == 1:
             current = trace_group.stashes['active'][0]
-            update_trace_progress(total_length - (len(bb_trace) - bb_cnt), total_length)
+            update_trace_progress(total_length - (len(bb_trace) - bb_cnt), total_length, fn_base, found_one)
             if current.addr == bb_trace[bb_cnt]: # the trace and angr agrees, just increment cnt
                 bb_cnt += 1
             elif current.addr < binary_start_code or current.addr > binary_end_code:
@@ -194,15 +204,18 @@ def constraint_trace(project, basedirectory, fn):
                     # greedily dump the output and add it to the encountered list
                     fn = dump_to_file(missed_branch)
                     found[missed_branch.addr] = encountered[missed_branch.addr] = fn
+                    found_one = True
 
         # drop missed branches
         trace_group.drop(stash='missed')
         
-    print "[%s]" % ("#" * 50)
+    update_trace_progress(1, 1, fn_base, found_one)
+    print
 
 def main(argc, argv):
     global binary_start_code, binary_end_code
     global outputdir, inputdir, binary
+    global trace_cnt, total_traces
 
     if (argc != 4):
         print "usage: %s <binary> <inputdir> <outputdir>" % (argv[0])
@@ -251,8 +264,9 @@ def main(argc, argv):
     accumulate_traces(basedirectory, project.filename, inputs)
 
     trace_cnt = 0
+    total_traces = len(inputs)
+    ok("constraint tracing starting..")
     for inputfile in inputs:
-        ok("[%02d/%d] tracing input from \"%s\"" % (trace_cnt + 1, len(inputs), inputfile))
         constraint_trace(project, basedirectory, inputfile)
         trace_cnt += 1
 
