@@ -127,6 +127,7 @@ def accumulate_traces(basedirectory, binary, inputs):
         for trace in traces:
             if trace not in encountered:
                 encountered[trace] = inputfile
+
         
 def update_trace_progress(numerator, denominator, fn, foundsomething):
     pcomplete = int((float(numerator) / float(denominator)) * 100)
@@ -191,6 +192,7 @@ def constraint_trace(project, basedirectory, fn):
         if len(trace_group.stashes['unconstrained']) > 0:
             for unconstrained in trace_group.stashes['unconstrained']:
                 dump_to_file(unconstrained)
+                found_one = True
             trace_group.drop(stash='unconstrained')
 
         assert len(trace_group.stashes['active']) < 2
@@ -201,9 +203,11 @@ def constraint_trace(project, basedirectory, fn):
             if missed_branch.addr not in encountered:
                 # before we waste any memory on this guy, make sure it's reachable
                 if missed_branch.state.satisfiable():
-                    # greedily dump the output and add it to the encountered list
+                    # greedily dump the output 
                     fn = dump_to_file(missed_branch)
-                    found[missed_branch.addr] = encountered[missed_branch.addr] = fn
+                    found[missed_branch.addr] = fn
+                    # because of things like readuntil we don't want to add anything to 
+                    # the encountered list just yet
                     found_one = True
 
         # drop missed branches
