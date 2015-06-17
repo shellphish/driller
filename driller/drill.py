@@ -22,6 +22,10 @@ def ok(s):
     status = termcolor.colored("*", "cyan", attrs=["bold"])
     print "[%s] %s" % (status, s)
 
+def success(s):
+    status = termcolor.colored("+", "green", attrs=["bold"])
+    print "[%s] %s" % (status, s)
+
 def alert(s):
     status = termcolor.colored("!", "yellow", attrs=["bold"])
     print "[%s] %s" % (status, s)
@@ -37,8 +41,20 @@ def die(s):
 
 
 encountered = {}
-missed = {}
+found = {}
 qemu_traces = {}
+
+def dump_to_file(path):
+    abspath = os.path.abspath(outputdir)
+    pref = os.path.join(abspath, "driller-%x-" % path.addr)
+
+    _, outfile = tempfile.mkstemp(prefix=pref)
+
+    fp = open(outfile, "w")
+    fp.write(path.state.posix.dumps(0))
+    fp.close()
+
+    return outfile
 
 class SymbolicRead(simuvex.SimProcedure):
     '''
@@ -161,6 +177,12 @@ def constraint_trace(project, basedirectory, fn):
 
         trace_group.stash_not_addr(next_move, to_stash='missed')
 
+        # check if angr found any unconstrained paths, this is most likely a crash
+        if len(trace_group.stashes['unconstrained']) > 0:
+            for unconstrained in trace_group.stashes['unconstrained']:
+                dump_to_file(unconstrained)
+            trace_group.drop(stash='unconstrained')
+
         assert len(trace_group.stashes['active']) < 2
 
         # if we just missed we check to see if another branch has encountered it
@@ -169,16 +191,9 @@ def constraint_trace(project, basedirectory, fn):
             if missed_branch.addr not in encountered:
                 # before we waste any memory on this guy, make sure it's reachable
                 if missed_branch.state.satisfiable():
-                    fpath = os.path.abspath(outputdir)
-                    _, greedy = tempfile.mkstemp(prefix="%s/%s-%x-" % (fpath, "driller-greedy", missed_branch.addr))
-                    gfp = open(greedy, "w")
-                    gfp.write(missed_branch.state.posix.dumps(0)) 
-                    gfp.close()
-                    ok("driller greedily found a new input in %s @ %s" % (greedy, time.ctime()))
-                    if missed_branch.addr in missed:
-                        missed[missed_branch.addr].append(missed_branch)
-                    else:
-                        missed[missed_branch.addr] = [missed_branch]
+                    # greedily dump the output and add it to the encountered list
+                    fn = dump_to_file(missed_branch)
+                    found[missed_branch.addr] = encountered[missed_branch.addr] = fn
 
         # drop missed branches
         trace_group.drop(stash='missed')
@@ -242,33 +257,13 @@ def main(argc, argv):
         trace_cnt += 1
 
 
-    # now that we've found some branches which our fuzzer missed, let's drill into them
-    alert("found %d basic block(s) our fuzzer had trouble reaching, drilling!" % len(missed))
+    # now that drilling is complete, let the user know some stats
 
-
-    alert("driller attempting to break into " + str(map(hex, missed.keys())))
-
-    for missed_addr in missed:
-        angr_paths = missed[missed_addr]
-        cur_path = 0
-        satisfied = False
-        while not satisfied and cur_path < len(angr_paths):
-            angr_path = angr_paths[cur_path]
-            if angr_path.state.satisfiable():
-                filename = "driller-%x" % angr_path.addr
-                outname = os.path.join(outputdir, filename)
-                fp = open(outname, "w")
-                fp.write(angr_path.state.posix.dumps(0))
-                fp.close()
-                ok("new input in %s!" % outname)
-                satisfied = True
-
-            cur_path += 1
-
-        if not satisfied:
-            warning("path at 0x%x is not satisfiable" % missed_addr)
-
-    ok("drilled inputs created and place in %s" % outputdir)
+    if len(found) == 0:
+        warning("driller unable to find any satisfiable basic blocks our fuzzer couldn't reach")
+    else:
+        success("drilled into %d basic block(s) our fuzzer couldn't reach!" % len(found))
+        success("drilled inputs created and place into %s" % outputdir)
 
 if __name__ == "__main__":
     sys.exit(main(len(sys.argv), sys.argv))
