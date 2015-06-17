@@ -1,3 +1,5 @@
+* Integrate with completely with AFL
+
 * Hack claripy to do some sort of taint tracking
 
 * Parallelize tracing
