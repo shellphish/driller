@@ -152,7 +152,7 @@ def constraint_trace(project, basedirectory, fn):
     total_length = len(bb_trace)
 
     parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
-    trace_group = project.path_group(immutable=False, paths=[parent_path])
+    trace_group = project.path_group(immutable=False, save_unconstrained=True, paths=[parent_path])
 
     # did this trace produce any interesting results?
     found_one = False
@@ -250,10 +250,10 @@ def main(argc, argv):
             die("cannot make output directory \"%s\"" % outputdir)
         else:
             pass
-            #alert("outputdir already exists, removing contents for convience")
-            #for f in os.listdir(outputdir):
-            #    fpath = os.path.join(outputdir, f)
-            #    os.remove(fpath)
+            alert("outputdir already exists, removing contents for convience")
+            for f in os.listdir(outputdir):
+                fpath = os.path.join(outputdir, f)
+                os.remove(fpath)
 
     project = angr.Project(binary)
 
