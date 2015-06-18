@@ -1,6 +1,6 @@
-* Integrate with completely with AFL
+* Use taint tracking to speed up tracing
 
-* Hack claripy to do some sort of taint tracking
+* Get AFL to test driller outputs as soon as they appear
 
 * Parallelize tracing
 
