@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-06-17 16:41:04.475925694 -0700
++++ afl-fuzz.c	2015-06-18 13:47:10.636000835 -0700
 @@ -66,12 +66,14 @@
  static u8 *in_dir,                    /* Input directory with test cases  */
            *out_file,                  /* File to fuzz, if any             */
@@ -114,7 +114,7 @@
    /* Provide some CPU utilization stats. */
  
    if (cpu_core_count) {
-@@ -7257,6 +7268,82 @@
+@@ -7257,6 +7268,85 @@
  
  }
  
@@ -189,15 +189,18 @@
 +
 +            common_fuzz_stuff(use_argv, fbuf, st.st_size);
 +
++            close(ifd);
 +            ck_free(fbuf);
 +            ck_free(file_path);
 +        } 
++
++        closedir(dfd);
 +    }
 +}
  
  /* Main entry point */
  
-@@ -7274,7 +7361,7 @@
+@@ -7274,7 +7364,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -206,7 +209,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7380,12 @@
+@@ -7293,6 +7383,12 @@
          out_dir = optarg;
          break;
  
@@ -219,7 +222,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7563,7 @@
+@@ -7470,7 +7566,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -228,7 +231,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7580,7 @@
+@@ -7487,6 +7583,7 @@
  
    start_time = get_cur_time();
  
@@ -236,7 +239,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7651,14 @@
+@@ -7557,6 +7654,14 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
