@@ -47,6 +47,9 @@ encountered = {}
 found = {}
 qemu_traces = {}
 
+# dict of input files which have been traced in previous runs
+traced = {}
+
 def dump_to_file(path):
     abspath = os.path.abspath(outputdir)
     pref = os.path.join(abspath, "driller-%x-" % path.addr)
@@ -74,15 +77,10 @@ class SymbolicRead(simuvex.SimProcedure):
             return self.state.se.BVV(0, self.state.arch.bits)
 
         sym_length = self.state.se.BV("read_length", self.state.arch.bits)
+        self.state.add_constraints(sym_length <= length)
+        self.state.add_constraints(sym_length >= 0)
 
-        self.state.se.add(sym_length <= length)
-
-        self.state.se.add(sym_length >= 0)
-
-        _ = self.state.posix.pos(fd)
-        #data = self.state.posix.read(fd, sym_length)
-        data = self.state.posix.read(fd, length)
-        self.state.store_mem(dst, data)
+        self.state.posix.read(fd, length, dst_addr=dst)
         return sym_length
 
 def generate_qemu_trace(basedirectory, binary, inputfile):
@@ -128,7 +126,22 @@ def accumulate_traces(basedirectory, binary, inputs):
             if trace not in encountered:
                 encountered[trace] = inputfile
 
-        
+
+def create_and_populate_traced(outputdir):
+    global traced
+
+    # make the subdirectory for storing what has already been traced
+    traced_dir = os.path.join(outputdir, ".traced")
+    try:
+        os.makedirs(traced_dir)
+    except OSError:
+        pass
+
+
+    # populate traced
+    for traced_file in os.listdir(traced_dir):
+        traced[traced_file] = True
+
 def update_trace_progress(numerator, denominator, fn, foundsomething):
     pcomplete = int((float(numerator) / float(denominator)) * 100)
     
@@ -151,8 +164,9 @@ def constraint_trace(project, basedirectory, fn):
     bb_trace = qemu_traces[fn]
     total_length = len(bb_trace)
 
+    #parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY}, remove_options={simuvex.s_options.LAZY_SOLVES})
     parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
-    trace_group = project.path_group(immutable=False, save_unconstrained=True, paths=[parent_path])
+    trace_group = project.path_group(immutable=False, save_unconstrained=True, save_unsat=True, paths=[parent_path])
 
     # did this trace produce any interesting results?
     found_one = False
@@ -177,11 +191,17 @@ def constraint_trace(project, basedirectory, fn):
                 # the trace and angr are out of sync, likely the trace is more verbose than
                 # angr and the actual occurance of the path is later on, so we wind up
                 # the trace until we hit the current address
-                while bb_trace[bb_cnt] != current.addr:
+                try:
+                    while bb_trace[bb_cnt] != current.addr:
+                        bb_cnt += 1
                     bb_cnt += 1
-                bb_cnt += 1
+                except:
+                    warning("errored in trace following")
+                    embed()
 
+            trace_group.drop(stash='unsat')
             trace_group.step()
+
         bb_trace = bb_trace[bb_cnt:]
 
         next_move = bb_trace[0]
@@ -253,7 +273,10 @@ def main(argc, argv):
             alert("outputdir already exists, removing contents for convience")
             for f in os.listdir(outputdir):
                 fpath = os.path.join(outputdir, f)
-                os.remove(fpath)
+                if not os.path.isdir(fpath):
+                    os.remove(fpath)
+
+    create_and_populate_traced(outputdir)
 
     project = angr.Project(binary)
 
@@ -269,11 +292,16 @@ def main(argc, argv):
     accumulate_traces(basedirectory, project.filename, inputs)
 
     trace_cnt = 0
-    total_traces = len(inputs)
-    ok("constraint tracing starting..")
+    total_traces = len(inputs) - len(traced)
+    ok("constraint tracing new inputs..")
     for inputfile in inputs:
-        constraint_trace(project, basedirectory, inputfile)
-        trace_cnt += 1
+        bname = os.path.basename(inputfile)
+        #if bname not in traced or inputfile == "afl-outputs/queue/id:000017,src:000016,op:flip1,pos:15,+cov":
+        if bname not in traced:
+            constraint_trace(project, basedirectory, inputfile)
+            traced_entry = os.path.join(outputdir, ".traced", bname)
+            open(traced_entry, "w").close()
+            trace_cnt += 1
 
 
     # now that drilling is complete, let the user know some stats
