@@ -96,6 +96,9 @@ def detect_arch(binary):
         else:
             raise Exception("Binary is of an unsupported architecture")
 
+    if progdat[0:4] == "\x7FCGC":
+        return "cgc"
+
     else:
         raise Exception("Binary is not an ELF")
 
