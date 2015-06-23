@@ -1,5 +1,7 @@
 * Get symbolic tracing working on CGC binaries
 
+* Make sure unconstrained dumping is working
+
 * Use taint tracking to speed up tracing
 
 * Get AFL to test driller outputs as soon as they appear
