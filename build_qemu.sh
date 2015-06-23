@@ -23,6 +23,7 @@ mv $X64_DEST ../driller_qemu/driller-qemu-x86_64
 mv $I386_DEST ../driller_qemu/driller-qemu-i386
 
 echo "Done with ELF qemu!"
+cd ..
 
 CGC_QEMU_GIT="git@git.seclab.cs.ucsb.edu:cgc/qemu.git"
 
@@ -31,6 +32,7 @@ cd cgc_qemu
 git checkout origin/base_driller
 ./cgc_configure_opt
 make -j
+pwd
 cp i386-linux-user/qemu-i386 ../driller_qemu/driller-qemu-cgc
 
 echo "Done with CGC qemu!"
