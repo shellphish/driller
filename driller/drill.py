@@ -8,6 +8,7 @@ import tempfile
 import subprocess
 import simuvex
 import time
+import struct
 from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 from IPython import embed
 
@@ -83,8 +84,28 @@ class SymbolicRead(simuvex.SimProcedure):
         self.state.posix.read(fd, length, dst_addr=dst)
         return sym_length
 
+def detect_arch(binary):
+    progdat = open(binary).read(0x800)
+
+    if progdat[0:4] == "\x7FELF":
+        machine = struct.unpack("H", progdat[0x12:0x14])[0]   # e_machine
+        if machine == 0x3e:
+            return "x86_64"
+        if machine == 0x03:
+            return "i386"
+        else:
+            raise Exception("Binary is of an unsupported architecture")
+
+    if progdat[0:4] == "\x7FCGC":
+        return "cgc"
+
+    else:
+        raise Exception("Binary is not an ELF")
+
 def generate_qemu_trace(basedirectory, binary, inputfile):
-    qemu_path = os.path.join(basedirectory, "../driller_qemu", "driller-qemu-x86_64")
+    arch = detect_arch(binary)
+
+    qemu_path = os.path.join(basedirectory, "../driller_qemu", "driller-qemu-%s" % arch)
     _, logfile = tempfile.mkstemp(prefix="/dev/shm/driller-trace-")
 
     # launch qemu asking it to trace the binary for us
@@ -235,6 +256,9 @@ def constraint_trace(project, basedirectory, fn):
         
     update_trace_progress(1, 1, fn_base, found_one)
     print
+
+    if len(trace_group.errored) > 0:
+        warning("some paths errored! this is most likely bad and could be a symptom of a bug!")
 
 def main(argc, argv):
     global binary_start_code, binary_end_code
