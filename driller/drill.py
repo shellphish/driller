@@ -77,11 +77,13 @@ class SymbolicRead(simuvex.SimProcedure):
         if self.state.se.max_int(length) == 0:
             return self.state.se.BVV(0, self.state.arch.bits)
 
-        sym_length = self.state.se.BV("read_length", self.state.arch.bits)
+        sym_length = self.state.se.BV("sym_length", self.state.arch.bits)
         self.state.add_constraints(sym_length <= length)
         self.state.add_constraints(sym_length >= 0)
 
-        self.state.posix.read(fd, length, dst_addr=dst)
+        _ = self.state.posix.pos(fd)
+        data = self.state.posix.read(fd, length)
+        self.state.store_mem(dst, data)
         return sym_length
 
 def detect_arch(binary):
