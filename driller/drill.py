@@ -9,6 +9,7 @@ import subprocess
 import simuvex
 import time
 import struct
+import archinfo
 from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 from IPython import embed
 
@@ -86,26 +87,34 @@ class SymbolicRead(simuvex.SimProcedure):
         self.state.store_mem(dst, data)
         return sym_length
 
-def detect_arch(binary):
-    progdat = open(binary).read(0x800)
+def detect_arch(loader):
+    '''
+    :param loader: a CLE loader object to extract the architecture from
+    :return: a string representing the architecture of the CLE loader instance
+    '''
 
-    if progdat[0:4] == "\x7FELF":
-        machine = struct.unpack("H", progdat[0x12:0x14])[0]   # e_machine
-        if machine == 0x3e:
-            return "x86_64"
-        if machine == 0x03:
-            return "i386"
-        else:
-            raise Exception("Binary is of an unsupported architecture")
+    larch = loader.main_bin.arch
+    ltype = loader.main_bin.filetype
 
-    if progdat[0:4] == "\x7FCGC":
-        return "cgc"
+    if ltype == "cgc":
+        arch = "cgc" 
 
-    else:
-        raise Exception("Binary is not an ELF")
+    if ltype == "elf":
+        if arch == archinfo.arch_amd64.ArchAMD64:
+            arch = "x86_64"
+        if arch == archinfo.arch_x86.ArchX86:
+            arch = "i386"
 
-def generate_qemu_trace(basedirectory, binary, inputfile):
-    arch = detect_arch(binary)
+    return arch
+
+def generate_qemu_trace(basedirectory, binary, arch, inputfile):
+    '''
+    :param basedirectory: base directory of the driller install for locating qemu
+    :param binary: the relative path to the binary
+    :param arch: the string representation of the architecture of the binary
+    :param inputfile: file containing the input to feed to the binary
+    :return: a list of basic blocks that qemu encountered while executing
+    '''
 
     qemu_path = os.path.join(basedirectory, "../driller_qemu", "driller-qemu-%s" % arch)
     _, logfile = tempfile.mkstemp(prefix="/dev/shm/driller-trace-")
@@ -135,13 +144,15 @@ def generate_qemu_trace(basedirectory, binary, inputfile):
 
     return tracelines
 
-def accumulate_traces(basedirectory, binary, inputs):
+def accumulate_traces(basedirectory, binary_path, loader, inputs):
     global qemu_traces
 
     alert("accumulating traces for all %d inputs" % len(inputs))
 
+    arch = detect_arch(loader)  
+
     for inputfile in inputs:
-        traces = generate_qemu_trace(basedirectory, binary, inputfile) 
+        traces = generate_qemu_trace(basedirectory, binary_path, arch, inputfile) 
         qemu_traces[inputfile] = traces
 
         # let's just populate encountered now
@@ -262,6 +273,20 @@ def constraint_trace(project, basedirectory, fn):
     if len(trace_group.errored) > 0:
         warning("some paths errored! this is most likely bad and could be a symptom of a bug!")
 
+def set_driller_simprocedures(project):
+
+    arch = detect_arch(project.ld)
+
+    if arch == "cgc":
+        from CGCSimProc import simprocedures
+    elif arch == "i386" or arch == "x86_64":
+        from LibCSimProc import simprocedures
+    else:
+        raise Exception("Binary is of unsupported architecture.")
+
+    for symbol, procedure in simprocedures:
+        project.set_sim_procedure(project.main_binary, symbol, procedure, None)
+
 def main(argc, argv):
     global binary_start_code, binary_end_code
     global outputdir, inputdir, binary
@@ -308,14 +333,13 @@ def main(argc, argv):
 
     # unlike most projects we need to allow the possibility for read to return a range
     # of values
-    project.set_sim_procedure(project.main_binary, "read", SymbolicRead, None)
-
+    set_driller_simprocedures(project)
 
     binary_start_code = project.ld.main_bin.get_min_addr()
     binary_end_code = project.ld.main_bin.get_max_addr()
     basedirectory = os.path.dirname(argv[0])
 
-    accumulate_traces(basedirectory, project.filename, inputs)
+    accumulate_traces(basedirectory, project.filename, project.ld, inputs)
 
     trace_cnt = 0
     total_traces = len(inputs) - len(traced)
