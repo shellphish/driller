@@ -322,7 +322,6 @@ def main(argc, argv):
     ok("constraint tracing new inputs..")
     for inputfile in inputs:
         bname = os.path.basename(inputfile)
-        #if bname not in traced or inputfile == "afl-outputs/queue/id:000017,src:000016,op:flip1,pos:15,+cov":
         if bname not in traced:
             constraint_trace(project, basedirectory, inputfile)
             traced_entry = os.path.join(outputdir, ".traced", bname)
