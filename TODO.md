@@ -1,4 +1,4 @@
-* Get symbolic tracing working on CGC binaries
+* Add timeout to QEMU tracing for binaries which don't terminate
 
 * Make sure unconstrained dumping is working
 
