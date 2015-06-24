@@ -38,4 +38,5 @@ class DrillerTransmit(simuvex.SimProcedure):
 
         return transmit_return
 
-simprocedures = [("transmit", DrillerTransmit)]
+# disable simprocedures for CGC
+simprocedures = []
