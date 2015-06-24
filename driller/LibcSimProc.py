@@ -19,9 +19,7 @@ class DrillerRead(simuvex.SimProcedure):
         self.state.add_constraints(sym_length <= length)
         self.state.add_constraints(sym_length >= 0)
 
-        _ = self.state.posix.pos(fd)
-        data = self.state.posix.read(fd, length)
-        self.state.store_mem(dst, data)
+        data = self.state.posix.read(fd, length, dst_addr=dst)
         return sym_length
 
 simprocedures = [("read", DrillerRead)]
