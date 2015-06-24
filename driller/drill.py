@@ -59,10 +59,16 @@ def dump_to_file(path):
     _, outfile = tempfile.mkstemp(prefix=pref)
 
     fp = open(outfile, "w")
-    fp.write(path.state.posix.dumps(0))
-    fp.close()
+    try:
+        fp.write(path.state.posix.dumps(0))
+        fp.close()
+        return_file = outfile 
+    except simuvex.s_errors.SimFileError: # sometimes we don't even have symbolic data yet
+        fp.close()
+        os.remove(outfile)
+        return_file = ""
 
-    return outfile
+    return return_file
 
 class SymbolicRead(simuvex.SimProcedure):
     '''
@@ -195,7 +201,7 @@ def constraint_trace(project, basedirectory, fn):
     fn_base = os.path.basename(fn)
 
     # get the basic block trace from qemu, this will differ slighting from angr's trace
-    bb_trace = qemu_traces[fn]
+    back_trace = bb_trace = qemu_traces[fn]
     total_length = len(bb_trace)
 
     #parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY}, remove_options={simuvex.s_options.LAZY_SOLVES})
@@ -205,6 +211,9 @@ def constraint_trace(project, basedirectory, fn):
     # did this trace produce any interesting results?
     found_one = False
 
+    # what the trace thinks is the next basic block
+    next_move = project.entry
+
     update_trace_progress(0, total_length, fn_base, found_one)
 
     # branches this trace didn't take
@@ -213,14 +222,24 @@ def constraint_trace(project, basedirectory, fn):
     while len(trace_group.stashes['active']) > 0:
 
         bb_cnt = 0
+        prev_bb = next_move
         while len(trace_group.stashes['active']) == 1:
             current = trace_group.stashes['active'][0]
+
+            #print "current: %x" % current.addr
+            #print "traced:  %x" % bb_trace[bb_cnt]
+            #print map(hex, bb_trace[bb_cnt:])
+
             update_trace_progress(total_length - (len(bb_trace) - bb_cnt), total_length, fn_base, found_one)
             if current.addr == bb_trace[bb_cnt]: # the trace and angr agrees, just increment cnt
                 bb_cnt += 1
             elif current.addr < binary_start_code or current.addr > binary_end_code:
                 # a library or a simprocedure, we'll ignore it
                 pass
+            elif prev_bb == current.addr: 
+                # offsets a quirk in angr, when executing a system call simprocedure we'll see the
+                # same basic block get hit two times in a row
+                pass 
             else:
                 # the trace and angr are out of sync, likely the trace is more verbose than
                 # angr and the actual occurance of the path is later on, so we wind up
@@ -233,6 +252,7 @@ def constraint_trace(project, basedirectory, fn):
                     warning("errored in trace following")
                     embed()
 
+            prev_bb = current.addr
             trace_group.drop(stash='unsat')
             trace_group.step()
 
@@ -259,10 +279,12 @@ def constraint_trace(project, basedirectory, fn):
                 if missed_branch.state.satisfiable():
                     # greedily dump the output 
                     fn = dump_to_file(missed_branch)
-                    found[missed_branch.addr] = fn
-                    # because of things like readuntil we don't want to add anything to 
-                    # the encountered list just yet
-                    found_one = True
+
+                    if fn != "":                        
+                        found[missed_branch.addr] = fn
+                        # because of things like readuntil we don't want to add anything to 
+                        # the encountered list just yet
+                        found_one = True
 
         # drop missed branches
         trace_group.drop(stash='missed')
