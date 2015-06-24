@@ -9,6 +9,7 @@ import subprocess
 import simuvex
 import time
 import struct
+import archinfo
 from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 from IPython import embed
 
@@ -58,10 +59,16 @@ def dump_to_file(path):
     _, outfile = tempfile.mkstemp(prefix=pref)
 
     fp = open(outfile, "w")
-    fp.write(path.state.posix.dumps(0))
-    fp.close()
+    try:
+        fp.write(path.state.posix.dumps(0))
+        fp.close()
+        return_file = outfile 
+    except simuvex.s_errors.SimFileError: # sometimes we don't even have symbolic data yet
+        fp.close()
+        os.remove(outfile)
+        return_file = ""
 
-    return outfile
+    return return_file
 
 class SymbolicRead(simuvex.SimProcedure):
     '''
@@ -86,26 +93,34 @@ class SymbolicRead(simuvex.SimProcedure):
         self.state.store_mem(dst, data)
         return sym_length
 
-def detect_arch(binary):
-    progdat = open(binary).read(0x800)
+def detect_arch(loader):
+    '''
+    :param loader: a CLE loader object to extract the architecture from
+    :return: a string representing the architecture of the CLE loader instance
+    '''
 
-    if progdat[0:4] == "\x7FELF":
-        machine = struct.unpack("H", progdat[0x12:0x14])[0]   # e_machine
-        if machine == 0x3e:
-            return "x86_64"
-        if machine == 0x03:
-            return "i386"
-        else:
-            raise Exception("Binary is of an unsupported architecture")
+    larch = loader.main_bin.arch
+    ltype = loader.main_bin.filetype
 
-    if progdat[0:4] == "\x7FCGC":
-        return "cgc"
+    if ltype == "cgc":
+        arch = "cgc" 
 
-    else:
-        raise Exception("Binary is not an ELF")
+    if ltype == "elf":
+        if larch == archinfo.arch_amd64.ArchAMD64:
+            arch = "x86_64"
+        if larch == archinfo.arch_x86.ArchX86:
+            arch = "i386"
 
-def generate_qemu_trace(basedirectory, binary, inputfile):
-    arch = detect_arch(binary)
+    return arch
+
+def generate_qemu_trace(basedirectory, binary, arch, inputfile):
+    '''
+    :param basedirectory: base directory of the driller install for locating qemu
+    :param binary: the relative path to the binary
+    :param arch: the string representation of the architecture of the binary
+    :param inputfile: file containing the input to feed to the binary
+    :return: a list of basic blocks that qemu encountered while executing
+    '''
 
     qemu_path = os.path.join(basedirectory, "../driller_qemu", "driller-qemu-%s" % arch)
     _, logfile = tempfile.mkstemp(prefix="/dev/shm/driller-trace-")
@@ -135,13 +150,15 @@ def generate_qemu_trace(basedirectory, binary, inputfile):
 
     return tracelines
 
-def accumulate_traces(basedirectory, binary, inputs):
+def accumulate_traces(basedirectory, binary_path, loader, inputs):
     global qemu_traces
 
     alert("accumulating traces for all %d inputs" % len(inputs))
 
+    arch = detect_arch(loader)  
+
     for inputfile in inputs:
-        traces = generate_qemu_trace(basedirectory, binary, inputfile) 
+        traces = generate_qemu_trace(basedirectory, binary_path, arch, inputfile) 
         qemu_traces[inputfile] = traces
 
         # let's just populate encountered now
@@ -184,7 +201,7 @@ def constraint_trace(project, basedirectory, fn):
     fn_base = os.path.basename(fn)
 
     # get the basic block trace from qemu, this will differ slighting from angr's trace
-    bb_trace = qemu_traces[fn]
+    back_trace = bb_trace = qemu_traces[fn]
     total_length = len(bb_trace)
 
     #parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY}, remove_options={simuvex.s_options.LAZY_SOLVES})
@@ -194,6 +211,9 @@ def constraint_trace(project, basedirectory, fn):
     # did this trace produce any interesting results?
     found_one = False
 
+    # what the trace thinks is the next basic block
+    next_move = project.entry
+
     update_trace_progress(0, total_length, fn_base, found_one)
 
     # branches this trace didn't take
@@ -202,14 +222,28 @@ def constraint_trace(project, basedirectory, fn):
     while len(trace_group.stashes['active']) > 0:
 
         bb_cnt = 0
+        prev_bb = next_move
         while len(trace_group.stashes['active']) == 1:
             current = trace_group.stashes['active'][0]
+
             update_trace_progress(total_length - (len(bb_trace) - bb_cnt), total_length, fn_base, found_one)
+
+            if bb_cnt >= len(bb_trace):
+                # sometimes angr explores one block too many. ie after a _terminate syscall angr
+                # may step into the basic block after the call, this case catches that
+                update_trace_progress(1, 1, fn_base, found_one)
+                print
+                return
+
             if current.addr == bb_trace[bb_cnt]: # the trace and angr agrees, just increment cnt
                 bb_cnt += 1
             elif current.addr < binary_start_code or current.addr > binary_end_code:
                 # a library or a simprocedure, we'll ignore it
                 pass
+            elif prev_bb == current.addr: 
+                # offsets a quirk in angr, when executing a system call simprocedure we'll see the
+                # same basic block get hit two times in a row
+                pass 
             else:
                 # the trace and angr are out of sync, likely the trace is more verbose than
                 # angr and the actual occurance of the path is later on, so we wind up
@@ -222,6 +256,7 @@ def constraint_trace(project, basedirectory, fn):
                     warning("errored in trace following")
                     embed()
 
+            prev_bb = current.addr
             trace_group.drop(stash='unsat')
             trace_group.step()
 
@@ -248,10 +283,14 @@ def constraint_trace(project, basedirectory, fn):
                 if missed_branch.state.satisfiable():
                     # greedily dump the output 
                     fn = dump_to_file(missed_branch)
-                    found[missed_branch.addr] = fn
-                    # because of things like readuntil we don't want to add anything to 
-                    # the encountered list just yet
-                    found_one = True
+
+                    if fn != "":                        
+                        if missed_branch.addr not in found:
+                            found_one = True
+
+                        found[missed_branch.addr] = fn
+                        # because of things like readuntil we don't want to add anything to 
+                        # the encountered list just yet
 
         # drop missed branches
         trace_group.drop(stash='missed')
@@ -261,6 +300,20 @@ def constraint_trace(project, basedirectory, fn):
 
     if len(trace_group.errored) > 0:
         warning("some paths errored! this is most likely bad and could be a symptom of a bug!")
+
+def set_driller_simprocedures(project):
+
+    arch = detect_arch(project.ld)
+
+    if arch == "cgc":
+        from CGCSimProc import simprocedures
+    elif arch == "i386" or arch == "x86_64":
+        from LibcSimProc import simprocedures 
+    else:
+        raise Exception("Binary is of unsupported architecture.")
+
+    for symbol, procedure in simprocedures:
+        project.set_sim_procedure(project.main_binary, symbol, procedure, None)
 
 def main(argc, argv):
     global binary_start_code, binary_end_code
@@ -308,21 +361,19 @@ def main(argc, argv):
 
     # unlike most projects we need to allow the possibility for read to return a range
     # of values
-    project.set_sim_procedure(project.main_binary, "read", SymbolicRead, None)
-
+    set_driller_simprocedures(project)
 
     binary_start_code = project.ld.main_bin.get_min_addr()
     binary_end_code = project.ld.main_bin.get_max_addr()
     basedirectory = os.path.dirname(argv[0])
 
-    accumulate_traces(basedirectory, project.filename, inputs)
+    accumulate_traces(basedirectory, project.filename, project.ld, inputs)
 
     trace_cnt = 0
     total_traces = len(inputs) - len(traced)
     ok("constraint tracing new inputs..")
     for inputfile in inputs:
         bname = os.path.basename(inputfile)
-        #if bname not in traced or inputfile == "afl-outputs/queue/id:000017,src:000016,op:flip1,pos:15,+cov":
         if bname not in traced:
             constraint_trace(project, basedirectory, inputfile)
             traced_entry = os.path.join(outputdir, ".traced", bname)
