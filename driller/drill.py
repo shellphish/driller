@@ -285,10 +285,12 @@ def constraint_trace(project, basedirectory, fn):
                     fn = dump_to_file(missed_branch)
 
                     if fn != "":                        
+                        if missed_branch.addr not in found:
+                            found_one = True
+
                         found[missed_branch.addr] = fn
                         # because of things like readuntil we don't want to add anything to 
                         # the encountered list just yet
-                        found_one = True
 
         # drop missed branches
         trace_group.drop(stash='missed')
