@@ -231,6 +231,12 @@ def constraint_trace(project, basedirectory, fn):
             #print map(hex, bb_trace[bb_cnt:])
 
             update_trace_progress(total_length - (len(bb_trace) - bb_cnt), total_length, fn_base, found_one)
+
+            if bb_cnt >= len(bb_trace):
+                # sometimes angr explores one block too many. ie after a _terminate syscall angr
+                # may step into the basic block after the call, this case catches that
+                return
+
             if current.addr == bb_trace[bb_cnt]: # the trace and angr agrees, just increment cnt
                 bb_cnt += 1
             elif current.addr < binary_start_code or current.addr > binary_end_code:
