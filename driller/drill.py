@@ -106,9 +106,9 @@ def detect_arch(loader):
         arch = "cgc" 
 
     if ltype == "elf":
-        if arch == archinfo.arch_amd64.ArchAMD64:
+        if larch == archinfo.arch_amd64.ArchAMD64:
             arch = "x86_64"
-        if arch == archinfo.arch_x86.ArchX86:
+        if larch == archinfo.arch_x86.ArchX86:
             arch = "i386"
 
     return arch
@@ -308,7 +308,7 @@ def set_driller_simprocedures(project):
     if arch == "cgc":
         from CGCSimProc import simprocedures
     elif arch == "i386" or arch == "x86_64":
-        from LibCSimProc import simprocedures
+        from LibcSimProc import simprocedures
     else:
         raise Exception("Binary is of unsupported architecture.")
 
