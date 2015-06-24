@@ -1,6 +1,15 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-06-23 18:15:15.808558535 -0700
-@@ -66,12 +66,14 @@
++++ afl-fuzz.c	2015-06-23 21:42:05.852341470 -0700
+@@ -59,6 +59,8 @@
+ #  include <sys/sysctl.h>
+ #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
+ 
++#define ELF_EXEC 0
++#define CGC_EXEC 1
+ 
+ /* Lots of globals, but mostly for the status UI and other things where it
+    really makes no sense to haul them around as function parameters. */
+@@ -66,13 +68,16 @@
  static u8 *in_dir,                    /* Input directory with test cases  */
            *out_file,                  /* File to fuzz, if any             */
            *out_dir,                   /* Working & output directory       */
@@ -11,11 +20,14 @@
            *in_bitmap,                 /* Input bitmap                     */
            *doc_path,                  /* Path to documentation dir        */
            *target_path,               /* Path to target binary            */
+-          *orig_cmdline;              /* Original command line            */
 +          *target_binary_path,        /* Path to target binary, not qemu  */
-           *orig_cmdline;              /* Original command line            */
++          *orig_cmdline,              /* Original command line            */
++          file_type;                  /* ELF or CGC binary?               */
  
  static u32 exec_tmout = EXEC_TIMEOUT; /* Configurable exec timeout (ms)   */
-@@ -153,7 +155,8 @@
+ static u64 mem_limit = MEM_LIMIT;     /* Memory cap for child (MB)        */
+@@ -153,7 +158,8 @@
             bytes_trim_in,             /* Bytes coming into the trimmer    */
             bytes_trim_out,            /* Bytes coming outa the trimmer    */
             blocks_eff_total,          /* Blocks subject to effector maps  */
@@ -25,7 +37,7 @@
  
  static u32 subseq_hangs;              /* Number of hangs in a row         */
  
-@@ -532,7 +535,7 @@
+@@ -532,7 +538,7 @@
    fn = alloc_printf("%s/queue/.state/deterministic_done/%s", out_dir, fn + 1);
  
    fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -34,7 +46,7 @@
    close(fd);
  
    ck_free(fn);
-@@ -555,7 +558,7 @@
+@@ -555,7 +561,7 @@
    if (symlink(ldest, fn)) {
  
      s32 fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -43,7 +55,7 @@
      close(fd);
  
    }
-@@ -586,7 +589,7 @@
+@@ -586,7 +592,7 @@
    if (state) {
  
      fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -52,7 +64,7 @@
      close(fd);
  
    } else {
-@@ -1242,7 +1245,7 @@
+@@ -1242,7 +1248,7 @@
  /* Read all testcases from the input directory, then queue them for testing.
     Called at startup. */
  
@@ -61,7 +73,7 @@
  
    struct dirent **nl;
    s32 nl_cnt;
-@@ -2686,7 +2689,7 @@
+@@ -2686,7 +2692,7 @@
  
  static void link_or_copy(u8* old_path, u8* new_path) {
  
@@ -70,7 +82,7 @@
    s32 sfd, dfd;
    u8* tmp;
  
-@@ -2696,7 +2699,7 @@
+@@ -2696,7 +2702,7 @@
    if (sfd < 0) PFATAL("Unable to open '%s'", old_path);
  
    dfd = open(new_path, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -79,7 +91,7 @@
  
    tmp = ck_alloc(64 * 1024);
  
-@@ -3691,7 +3694,7 @@
+@@ -3691,7 +3697,7 @@
  
    sprintf(tmp + banner_pad, "%s " cLCY VERSION cLGN
            " (%s)",  crash_mode ? cPIN "peruvian were-rabbit" : 
@@ -88,7 +100,7 @@
  
    SAYF("\n%s\n\n", tmp);
  
-@@ -3948,6 +3951,8 @@
+@@ -3948,6 +3954,8 @@
         "  variable : %s%-10s " bSTG bV "\n", tmp, queued_variable ? cLRD : cNOR,
        no_var_check ? (u8*)"n/a" : DI(queued_variable));
  
@@ -97,7 +109,7 @@
    if (!bytes_trim_out) {
  
      sprintf(tmp, "n/a, ");
-@@ -3979,9 +3984,15 @@
+@@ -3979,9 +3987,15 @@
  
    }
  
@@ -114,17 +126,72 @@
    /* Provide some CPU utilization stats. */
  
    if (cpu_core_count) {
-@@ -6518,7 +6529,8 @@
+@@ -6517,8 +6531,11 @@
+ 
  #ifndef __APPLE__
  
++  file_type = ELF_EXEC;
    if (f_data[0] != 0x7f || memcmp(f_data + 1, "ELF", 3))
 -    FATAL("Program '%s' is not an ELF binary", target_path);
++    file_type = CGC_EXEC;
 +    if (f_data[0] != 0x7f || memcmp(f_data + 1, "CGC", 3))
 +        FATAL("Program '%s' is not an ELF or CGC binary", target_path);
  
  #else
  
-@@ -7257,6 +7269,88 @@
+@@ -7166,7 +7183,7 @@
+ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
+ 
+   char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
+-  u8 *tmp, *cp, *rsl, *own_copy;
++  u8 *tmp, *cp, *rsl, *own_copy, *qemu_name, *bpath;
+ 
+   memcpy(new_argv + 3, argv + 1, sizeof(char*) * argc);
+ 
+@@ -7177,9 +7194,17 @@
+ 
+   tmp = getenv("AFL_PATH");
+ 
++  if (file_type == ELF_EXEC)
++    qemu_name = "afl-qemu-trace";
++  else if (file_type == CGC_EXEC)
++    qemu_name = "afl-qemu-trace-cgc";
++  else
++    FATAL("Somehow got an unknown file type, not ELF or CGC binary.");
++    
++
+   if (tmp) {
+ 
+-    cp = alloc_printf("%s/afl-qemu-trace", tmp);
++    cp = alloc_printf("%s/%s", tmp, qemu_name);
+ 
+     if (access(cp, X_OK))
+       FATAL("Unable to find '%s'", tmp);
+@@ -7196,7 +7221,8 @@
+ 
+     *rsl = 0;
+ 
+-    cp = alloc_printf("%s/afl-qemu-trace", own_copy);
++    cp = alloc_printf("%s/%s", own_copy, qemu_name);
++
+     ck_free(own_copy);
+ 
+     if (!access(cp, X_OK)) {
+@@ -7208,9 +7234,11 @@
+ 
+   } else ck_free(own_copy);
+ 
+-  if (!access(BIN_PATH "/afl-qemu-trace", X_OK)) {
++  bpath = alloc_printf("%s/%s", BIN_PATH, qemu_name);
++  if (!access(bpath, X_OK)) {
+ 
+-    target_path = new_argv[0] = ck_strdup(BIN_PATH "/afl-qemu-trace");
++    target_path = new_argv[0] = ck_strdup(bpath);
++    ck_free(bpath);
+     return new_argv;
+ 
+   }
+@@ -7257,6 +7285,88 @@
  
  }
  
@@ -213,7 +280,7 @@
  
  /* Main entry point */
  
-@@ -7274,7 +7368,7 @@
+@@ -7274,7 +7384,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -222,7 +289,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7387,12 @@
+@@ -7293,6 +7403,12 @@
          out_dir = optarg;
          break;
  
@@ -235,7 +302,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7570,7 @@
+@@ -7470,7 +7586,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -244,7 +311,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7587,7 @@
+@@ -7487,6 +7603,7 @@
  
    start_time = get_cur_time();
  
@@ -252,7 +319,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7658,14 @@
+@@ -7557,6 +7674,14 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
