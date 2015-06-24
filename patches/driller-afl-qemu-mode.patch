@@ -1,18 +1,10 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/qemu_mode/build_qemu_support.sh	2015-04-29 20:34:59.000000000 -0700
-+++ build_qemu_support.sh	2015-06-23 21:42:38.824340893 -0700
-@@ -150,36 +150,70 @@
++++ build_qemu_support.sh	2015-06-24 16:45:01.095775984 -0700
+@@ -150,37 +150,71 @@
  cd ..
  ls -l ../afl-qemu-trace || exit 1
  
 -echo "[+] Successfully created '../afl-qemu-trace'."
--
--echo "[*] Testing the build..."
--
--cd ..
--
--make >/dev/null || exit 1
--
--gcc test-instr.c -o test-instr || exit 1
 +#echo "[+] Successfully created '../afl-qemu-trace'."
 +#
 +#echo "[*] Testing the build..."
@@ -65,9 +57,17 @@
 +
 +echo "[*] Attempting to build QEMU (fingers crossed!)..."
  
--unset AFL_INST_RATIO
+-echo "[*] Testing the build..."
 +make -j7 || exit 1
  
+-cd ..
+-
+-make >/dev/null || exit 1
+-
+-gcc test-instr.c -o test-instr || exit 1
+-
+-unset AFL_INST_RATIO
+-
 -echo 0 | ./afl-showmap -m none -Q -q -o .test-instr0 ./test-instr || exit 1
 -echo 1 | ./afl-showmap -m none -Q -q -o .test-instr1 ./test-instr || exit 1
 +echo "[+] Build process successful!"
@@ -88,10 +88,12 @@
 -
 -fi
 +cd ..
-+ls -l ../afl-qemu-cgc-trace || exit 1
++ls -l ../afl-qemu-trace-cgc || exit 1
  
 -echo "[+] Instrumentation tests passed. "
-+echo "[+] Successfully created '../afl-qemu-trace'."
++echo "[+] Successfully created '../afl-qemu-trace-cgc'."
  
- echo "[+] All set, you can now use the -Q mode in afl-fuzz!"
+-echo "[+] All set, you can now use the -Q mode in afl-fuzz!"
++echo "[+] All set, you can now use the -Q mode in afl-fuzz on CGC binaries as well!"
  
+ exit 0
