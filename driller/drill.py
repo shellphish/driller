@@ -226,15 +226,13 @@ def constraint_trace(project, basedirectory, fn):
         while len(trace_group.stashes['active']) == 1:
             current = trace_group.stashes['active'][0]
 
-            #print "current: %x" % current.addr
-            #print "traced:  %x" % bb_trace[bb_cnt]
-            #print map(hex, bb_trace[bb_cnt:])
-
             update_trace_progress(total_length - (len(bb_trace) - bb_cnt), total_length, fn_base, found_one)
 
             if bb_cnt >= len(bb_trace):
                 # sometimes angr explores one block too many. ie after a _terminate syscall angr
                 # may step into the basic block after the call, this case catches that
+                update_trace_progress(1, 1, fn_base, found_one)
+                print
                 return
 
             if current.addr == bb_trace[bb_cnt]: # the trace and angr agrees, just increment cnt
@@ -308,7 +306,7 @@ def set_driller_simprocedures(project):
     if arch == "cgc":
         from CGCSimProc import simprocedures
     elif arch == "i386" or arch == "x86_64":
-        from LibcSimProc import simprocedures
+        from LibcSimProc import simprocedures 
     else:
         raise Exception("Binary is of unsupported architecture.")
 
