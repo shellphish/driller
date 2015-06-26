@@ -2,6 +2,7 @@
 
 import angr
 import sys
+import argparse
 import termcolor
 import os
 import tempfile
@@ -301,13 +302,16 @@ def main(argc, argv):
     global outputdir, inputdir, binary
     global trace_cnt, total_traces
 
-    if (argc != 4):
-        print "usage: %s <binary> <inputdir> <outputdir>" % (argv[0])
-        return 1
+    parser = argparse.ArgumentParser(description="Find basic blocks AFL can't")
+    parser.add_argument('-i', dest='inputdir', type=str, metavar="<input_dir>", help='input directoy', required=True)
+    parser.add_argument('-o', dest='outputdir', type=str, metavar="<output_dir>", help='output directoy', required=True)
+    parser.add_argument('-b', dest='binary', type=str, metavar="<binary>", help='binary', required=True)
 
-    binary = argv[1]
-    inputdir = argv[2]
-    outputdir = argv[3]
+    args = parser.parse_args()
+
+    binary = args.binary
+    inputdir = args.inputdir
+    outputdir = args.outputdir
 
     ok("drilling into \"%s\" with inputs in \"%s\"" % (binary, inputdir)) 
     alert("started at %s" % time.ctime())
