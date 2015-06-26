@@ -186,6 +186,7 @@ def constraint_trace(fn):
 
     # get the basic block trace from qemu, this will differ slighting from angr's trace
     bb_trace = qemu_traces[fn]
+    total_length = len(bb_trace)
 
     parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
     trace_group = project.path_group(immutable=False, save_unconstrained=True, save_unsat=True, paths=[parent_path])
@@ -218,7 +219,7 @@ def constraint_trace(fn):
                 # sometimes angr explores one block too many. ie after a _terminate syscall angr
                 # may step into the basic block after the call, this case catches that
                 shared_trace_cnt.value += 1
-                print "trace %d / %d %s" % (shared_trace_cnt.value, total_traces, fn)
+                print "trace %d / %d [%d bbs] %s" % (shared_trace_cnt.value, total_length, total_traces, fn)
                 return
 
             if current.addr == bb_trace[bb_cnt]: # the trace and angr agrees, just increment cnt
@@ -282,7 +283,7 @@ def constraint_trace(fn):
         trace_group.drop(stash='missed')
         
     shared_trace_cnt.value += 1
-    print "trace %d / %d %s" % (shared_trace_cnt.value, total_traces, fn)
+    print "trace %d / %d [%d bbs] %s" % (shared_trace_cnt.value, total_traces, total_length, fn)
 
     if len(trace_group.errored) > 0:
         warning("some paths errored! this is most likely bad and could be a symptom of a bug!")
