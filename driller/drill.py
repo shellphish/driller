@@ -24,24 +24,23 @@ trace_cnt = 0
 total_traces = 0
 
 def ok(s):
-    status = termcolor.colored("*", "cyan", attrs=["bold"])
-    print "[%s] %s" % (status, s)
+    status = termcolor.colored("[*]", "cyan", attrs=["bold"])
+    print "%s %s" % (status, s)
 
 def success(s):
-    status = termcolor.colored("+", "green", attrs=["bold"])
-    print "[%s] %s" % (status, s)
+    status = termcolor.colored("[+]", "green", attrs=["bold"])
+    print "%s %s" % (status, s)
 
 def alert(s):
-    status = termcolor.colored("!", "yellow", attrs=["bold"])
-    print "[%s] %s" % (status, s)
+    status = termcolor.colored("[!]", "yellow", attrs=["bold"])
+    print "%s %s" % (status, s)
 
 def warning(s):
-    status = termcolor.colored("-", "red", attrs=["bold"])
-    print "[%s] %s" % (status, s)
+    status = termcolor.colored("[-]", "red", attrs=["bold"])
+    print "%s %s" % (status, s)
 
 def die(s):
-    status = termcolor.colored("-", "red", attrs=["bold"])
-    print "[%s] %s" % (status, s)
+    warning(s)
     sys.exit(1)
 
 
@@ -167,12 +166,12 @@ def create_and_populate_traced(outputdir):
 def update_trace_progress(numerator, denominator, fn, foundsomething):
     pcomplete = int((float(numerator) / float(denominator)) * 100)
     
-    p = termcolor.colored("*", "cyan", attrs=["bold"])
+    p = termcolor.colored("[*]", "cyan", attrs=["bold"])
     excitement = ""
     if foundsomething:
         excitement = termcolor.colored("!", "green", attrs=["bold"])
 
-    print "[%s] trace %02d/%d, %3d%% complete, %s %s\r" % (p, trace_cnt + 1, total_traces, pcomplete, fn, excitement), 
+    print "%s trace %02d/%d, %3d%% complete, %s %s\r" % (p, trace_cnt + 1, total_traces, pcomplete, fn, excitement), 
     sys.stdout.flush()
 
 def constraint_trace(project, basedirectory, fn):
