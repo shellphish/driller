@@ -114,7 +114,7 @@ def generate_qemu_trace(basedirectory, binary, arch, inputfile):
 
     # feed it input
     fp = open(inputfile)
-    dp = open("/dev/null")
+    dp = open("/dev/null", "w")
 
     # execute the process waiting for it to terminate
     p = subprocess.Popen(args, stdin=fp, stdout=dp)
