@@ -52,23 +52,30 @@ qemu_traces = {}
 # dict of input files which have been traced in previous runs
 traced = {}
 
+# set of generated inputs to avoid duplicates
+generated = set()
+
 def dump_to_file(path):
     abspath = os.path.abspath(outputdir)
     pref = os.path.join(abspath, "driller-%x-" % path.addr)
 
+    try:
+        gen = path.state.posix.dumps(0)
+    except simuvex.s_errors.SimFileError: # sometimes we don't even have symbolic data yet
+        return ""
+
+    if gen in generated:
+        return ""
+
+    generated.add(gen)
+
     _, outfile = tempfile.mkstemp(prefix=pref)
 
     fp = open(outfile, "w")
-    try:
-        fp.write(path.state.posix.dumps(0))
-        fp.close()
-        return_file = outfile 
-    except simuvex.s_errors.SimFileError: # sometimes we don't even have symbolic data yet
-        fp.close()
-        os.remove(outfile)
-        return_file = ""
+    fp.write(gen)
+    fp.close()
 
-    return return_file
+    return outfile
 
 class SymbolicRead(simuvex.SimProcedure):
     '''
