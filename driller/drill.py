@@ -165,16 +165,15 @@ def create_and_populate_traced(outputdir):
     # populate traced
     traced = set(traced_inputs.split("\n"))
 
-def update_trace_progress(numerator, denominator, fn, foundsomething):
-    pcomplete = int((float(numerator) / float(denominator)) * 100)
+def print_trace_stats(bb_cnt, fn, foundsomething):
+    trace_cnt_v = shared_trace_cnt.value
     
     p = termcolor.colored("[*]", "cyan", attrs=["bold"])
     excitement = ""
     if foundsomething:
         excitement = termcolor.colored("!", "green", attrs=["bold"])
 
-    print "%s trace %02d/%d, %3d%% complete, %d bbs, %s %s\r" % (p, trace_cnt + 1, total_traces, pcomplete, denominator, fn, excitement), 
-    sys.stdout.flush()
+    print "%s trace %02d/%d, %d bbs, %s %s" % (p, trace_cnt_v, total_traces, bb_cnt, fn, excitement) 
 
 def constraint_trace(fn):
     '''
@@ -211,15 +210,14 @@ def constraint_trace(fn):
         while len(trace_group.stashes['active']) == 1:
             current = trace_group.stashes['active'][0]
 
-            #update_trace_progress(total_length - (len(bb_trace) - bb_cnt), total_length, fn_base, found_one)
             current.trim_history()
             current.state.downsize()
 
             if bb_cnt >= len(bb_trace):
                 # sometimes angr explores one block too many. ie after a _terminate syscall angr
                 # may step into the basic block after the call, this case catches that
+                print_trace_stats(total_length, fn, found_one)
                 shared_trace_cnt.value += 1
-                print "trace %d / %d [%d bbs] %s" % (shared_trace_cnt.value, total_length, total_traces, fn)
                 return
 
             if current.addr == bb_trace[bb_cnt]: # the trace and angr agrees, just increment cnt
@@ -282,8 +280,8 @@ def constraint_trace(fn):
         # drop missed branches
         trace_group.drop(stash='missed')
         
+    print_trace_stats(total_length, fn, found_one)
     shared_trace_cnt.value += 1
-    print "trace %d / %d [%d bbs] %s" % (shared_trace_cnt.value, total_traces, total_length, fn)
 
     if len(trace_group.errored) > 0:
         warning("some paths errored! this is most likely bad and could be a symptom of a bug!")
@@ -374,12 +372,14 @@ def main(argc, argv):
     trace_cnt = 0
     total_traces = len(inputs) - len(traced)
 
-    inputs = filter(lambda i: i not in traced, inputs)
-    
+    inputs = [i for i in inputs if i not in traced] 
 
-    ok("constraint tracing new inputs..")
-    p = multiprocessing.Pool(thread_cnt)
-    p.map(constraint_trace,  inputs)
+    if len(inputs) > 0:
+        ok("constraint tracing new inputs..")
+        p = multiprocessing.Pool(thread_cnt)
+        p.map(constraint_trace,  inputs)
+    else:
+        die("no new input available, refusing to trace")
     
     # catalogue the traces so we don't have to do the work again
     with open(os.path.join(outputdir, ".traced"), "a") as tp:
@@ -387,10 +387,10 @@ def main(argc, argv):
         tp.close()
 
     # now that drilling is complete, let the user know some stats
-    if len(found) == 0:
+    if len(os.listdir(outputdir)) < 2:
         warning("driller unable to find any satisfiable basic blocks our fuzzer couldn't reach")
     else:
-        success("drilled into %d basic block(s) our fuzzer couldn't reach!" % len(found))
+        success("drilled into some basic blocks our fuzzer couldn't reach!")
         success("drilled inputs created and place into %s" % outputdir)
 
 if __name__ == "__main__":
