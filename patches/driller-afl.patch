@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-06-23 21:42:05.852341470 -0700
++++ afl-fuzz.c	2015-06-25 21:07:08.649989664 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -126,20 +126,22 @@
    /* Provide some CPU utilization stats. */
  
    if (cpu_core_count) {
-@@ -6517,8 +6531,11 @@
+@@ -6517,8 +6531,13 @@
  
  #ifndef __APPLE__
  
 +  file_type = ELF_EXEC;
    if (f_data[0] != 0x7f || memcmp(f_data + 1, "ELF", 3))
 -    FATAL("Program '%s' is not an ELF binary", target_path);
++  {
 +    file_type = CGC_EXEC;
 +    if (f_data[0] != 0x7f || memcmp(f_data + 1, "CGC", 3))
 +        FATAL("Program '%s' is not an ELF or CGC binary", target_path);
++  }
  
  #else
  
-@@ -7166,7 +7183,7 @@
+@@ -7166,7 +7185,7 @@
  static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
  
    char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
@@ -148,7 +150,7 @@
  
    memcpy(new_argv + 3, argv + 1, sizeof(char*) * argc);
  
-@@ -7177,9 +7194,17 @@
+@@ -7177,9 +7196,17 @@
  
    tmp = getenv("AFL_PATH");
  
@@ -167,7 +169,7 @@
  
      if (access(cp, X_OK))
        FATAL("Unable to find '%s'", tmp);
-@@ -7196,7 +7221,8 @@
+@@ -7196,7 +7223,8 @@
  
      *rsl = 0;
  
@@ -177,7 +179,7 @@
      ck_free(own_copy);
  
      if (!access(cp, X_OK)) {
-@@ -7208,9 +7234,11 @@
+@@ -7208,9 +7236,11 @@
  
    } else ck_free(own_copy);
  
@@ -191,7 +193,7 @@
      return new_argv;
  
    }
-@@ -7257,6 +7285,88 @@
+@@ -7257,6 +7287,90 @@
  
  }
  
@@ -207,9 +209,11 @@
 +    u8 *fbuf;
 +    char *argv[5];
 +    char *file_path;
-+    char *driller_out = "driller_output";
++    char *driller_out;
 +
-+    printf("[!] driller being invoked!\n");
++    SAYF(cYEL "[!]" cRST " driller being invoked!\n");
++
++    driller_out = alloc_printf("%s/driller/", out_dir);
 +
 +    argv[0] = driller_path;
 +    argv[1] = target_binary_path;
@@ -280,7 +284,7 @@
  
  /* Main entry point */
  
-@@ -7274,7 +7384,7 @@
+@@ -7274,7 +7388,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -289,7 +293,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7403,12 @@
+@@ -7293,6 +7407,12 @@
          out_dir = optarg;
          break;
  
@@ -302,7 +306,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7586,7 @@
+@@ -7470,7 +7590,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -311,7 +315,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7603,7 @@
+@@ -7487,6 +7607,7 @@
  
    start_time = get_cur_time();
  
@@ -319,7 +323,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7674,14 @@
+@@ -7557,6 +7678,14 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
