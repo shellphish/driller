@@ -50,7 +50,7 @@ found = {}
 qemu_traces = {}
 
 # dict of input files which have been traced in previous runs
-traced = {}
+traced = set()
 
 # set of generated inputs to avoid duplicates
 generated = set()
@@ -178,16 +178,14 @@ def create_and_populate_traced(outputdir):
     global traced
 
     # make the subdirectory for storing what has already been traced
-    traced_dir = os.path.join(outputdir, ".traced")
+    trace_file = os.path.join(outputdir, ".traced")
     try:
-        os.makedirs(traced_dir)
-    except OSError:
-        pass
-
+        traced_inputs = open(trace_file).read()
+    except IOError:
+        return
 
     # populate traced
-    for traced_file in os.listdir(traced_dir):
-        traced[traced_file] = True
+    traced = set(traced_inputs.split("\n"))
 
 def update_trace_progress(numerator, denominator, fn, foundsomething):
     pcomplete = int((float(numerator) / float(denominator)) * 100)
@@ -359,7 +357,7 @@ def main(argc, argv):
             alert("outputdir already exists, removing contents for convience")
             for f in os.listdir(outputdir):
                 fpath = os.path.join(outputdir, f)
-                if not os.path.isdir(fpath):
+                if f != ".traced":
                     os.remove(fpath)
 
     create_and_populate_traced(outputdir)
@@ -383,8 +381,10 @@ def main(argc, argv):
         bname = os.path.basename(inputfile)
         if bname not in traced:
             constraint_trace(project, basedirectory, inputfile)
-            traced_entry = os.path.join(outputdir, ".traced", bname)
-            open(traced_entry, "w").close()
+            traced_catalogue = os.path.join(outputdir, ".traced")
+            with open(traced_catalogue, "a", 0644) as tp:
+                tp.write(bname + "\n")
+                tp.close()
             trace_cnt += 1
 
 
