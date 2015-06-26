@@ -172,7 +172,7 @@ def update_trace_progress(numerator, denominator, fn, foundsomething):
     if foundsomething:
         excitement = termcolor.colored("!", "green", attrs=["bold"])
 
-    print "%s trace %02d/%d, %3d%% complete, %s %s\r" % (p, trace_cnt + 1, total_traces, pcomplete, fn, excitement), 
+    print "%s trace %02d/%d, %3d%% complete, %d bbs, %s %s\r" % (p, trace_cnt + 1, total_traces, pcomplete, denominator, fn, excitement), 
     sys.stdout.flush()
 
 def constraint_trace(project, basedirectory, fn):
@@ -205,15 +205,22 @@ def constraint_trace(project, basedirectory, fn):
 
         bb_cnt = 0
         prev_bb = next_move
+
+        assert len(trace_group.active) < 2
+
+
         while len(trace_group.stashes['active']) == 1:
             current = trace_group.stashes['active'][0]
+
+            current.trim_history()
+            current.state.downsize()
 
             update_trace_progress(total_length - (len(bb_trace) - bb_cnt), total_length, fn_base, found_one)
 
             if bb_cnt >= len(bb_trace):
                 # sometimes angr explores one block too many. ie after a _terminate syscall angr
                 # may step into the basic block after the call, this case catches that
-                update_trace_progress(1, 1, fn_base, found_one)
+                update_trace_progress(total_length, total_length, fn_base, found_one)
                 print
                 return
 
@@ -277,7 +284,7 @@ def constraint_trace(project, basedirectory, fn):
         # drop missed branches
         trace_group.drop(stash='missed')
         
-    update_trace_progress(1, 1, fn_base, found_one)
+    update_trace_progress(total_length, total_length, fn_base, found_one)
     print
 
     if len(trace_group.errored) > 0:
@@ -321,7 +328,8 @@ def main(argc, argv):
         for inp in inputs:
             pathed_input = os.path.join(inputdir, inp)
             if not os.path.isdir(pathed_input):
-                pathed_inputs.append(pathed_input)
+                if inp != ".traced":
+                    pathed_inputs.append(pathed_input)
             
         inputs = pathed_inputs
     else:
