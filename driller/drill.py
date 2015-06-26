@@ -2,6 +2,7 @@
 
 import angr
 import sys
+import multiprocessing
 import argparse
 import termcolor
 import os
@@ -21,7 +22,7 @@ outputdir = None
 inputdir = None
 binary = None
 
-trace_cnt = 0
+shared_trace_cnt = multiprocessing.Value('L', 0, lock=multiprocessing.Lock())
 total_traces = 0
 
 def ok(s):
@@ -164,29 +165,28 @@ def create_and_populate_traced(outputdir):
     # populate traced
     traced = set(traced_inputs.split("\n"))
 
-def update_trace_progress(numerator, denominator, fn, foundsomething):
-    pcomplete = int((float(numerator) / float(denominator)) * 100)
+def print_trace_stats(bb_cnt, fn, foundsomething):
+    trace_cnt_v = shared_trace_cnt.value
     
     p = termcolor.colored("[*]", "cyan", attrs=["bold"])
     excitement = ""
     if foundsomething:
         excitement = termcolor.colored("!", "green", attrs=["bold"])
 
-    print "%s trace %02d/%d, %3d%% complete, %d bbs, %s %s\r" % (p, trace_cnt + 1, total_traces, pcomplete, denominator, fn, excitement), 
-    sys.stdout.flush()
+    print "%s trace %02d/%d, %d bbs, %s %s" % (p, trace_cnt_v, total_traces, bb_cnt, fn, excitement) 
 
-def constraint_trace(project, basedirectory, fn):
+def constraint_trace(fn):
     '''
     Perform a trace on the binary in project with the input in fn.
     '''
+    global shared_trace_cnt
 
     fn_base = os.path.basename(fn)
 
     # get the basic block trace from qemu, this will differ slighting from angr's trace
-    back_trace = bb_trace = qemu_traces[fn]
+    bb_trace = qemu_traces[fn]
     total_length = len(bb_trace)
 
-    #parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY}, remove_options={simuvex.s_options.LAZY_SOLVES})
     parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
     trace_group = project.path_group(immutable=False, save_unconstrained=True, save_unsat=True, paths=[parent_path])
 
@@ -195,8 +195,6 @@ def constraint_trace(project, basedirectory, fn):
 
     # what the trace thinks is the next basic block
     next_move = project.entry
-
-    update_trace_progress(0, total_length, fn_base, found_one)
 
     # branches this trace didn't take
     trace_group.stashes['missed'] = [ ] 
@@ -215,13 +213,11 @@ def constraint_trace(project, basedirectory, fn):
             current.trim_history()
             current.state.downsize()
 
-            update_trace_progress(total_length - (len(bb_trace) - bb_cnt), total_length, fn_base, found_one)
-
             if bb_cnt >= len(bb_trace):
                 # sometimes angr explores one block too many. ie after a _terminate syscall angr
                 # may step into the basic block after the call, this case catches that
-                update_trace_progress(total_length, total_length, fn_base, found_one)
-                print
+                print_trace_stats(total_length, fn, found_one)
+                shared_trace_cnt.value += 1
                 return
 
             if current.addr == bb_trace[bb_cnt]: # the trace and angr agrees, just increment cnt
@@ -271,24 +267,26 @@ def constraint_trace(project, basedirectory, fn):
                 # before we waste any memory on this guy, make sure it's reachable
                 if missed_branch.state.satisfiable():
                     # greedily dump the output 
-                    fn = dump_to_file(missed_branch)
+                    outf = dump_to_file(missed_branch)
 
-                    if fn != "":                        
+                    if outf != "":                        
                         if missed_branch.addr not in found:
                             found_one = True
 
-                        found[missed_branch.addr] = fn
+                        found[missed_branch.addr] = outf
                         # because of things like readuntil we don't want to add anything to 
                         # the encountered list just yet
 
         # drop missed branches
         trace_group.drop(stash='missed')
         
-    update_trace_progress(total_length, total_length, fn_base, found_one)
-    print
+    print_trace_stats(total_length, fn, found_one)
+    shared_trace_cnt.value += 1
 
     if len(trace_group.errored) > 0:
         warning("some paths errored! this is most likely bad and could be a symptom of a bug!")
+
+    return
 
 def set_driller_simprocedures(project):
 
@@ -308,17 +306,26 @@ def main(argc, argv):
     global binary_start_code, binary_end_code
     global outputdir, inputdir, binary
     global trace_cnt, total_traces
+    global project
+    global basedirectory
+    global trace_cnt_shared
 
     parser = argparse.ArgumentParser(description="Find basic blocks AFL can't")
     parser.add_argument('-i', dest='inputdir', type=str, metavar="<input_dir>", help='input directoy', required=True)
     parser.add_argument('-o', dest='outputdir', type=str, metavar="<output_dir>", help='output directoy', required=True)
     parser.add_argument('-b', dest='binary', type=str, metavar="<binary>", help='binary', required=True)
+    parser.add_argument('-j', default=multiprocessing.cpu_count(), dest='thread_cnt', type=int, metavar="<i>", help='number of tracer threads')
 
     args = parser.parse_args()
 
     binary = args.binary
     inputdir = args.inputdir
     outputdir = args.outputdir
+    thread_cnt = args.thread_cnt
+
+    if thread_cnt > multiprocessing.cpu_count():
+        die("I wouldn't recommend starting more driller processes than you have CPUs")
+
 
     ok("drilling into \"%s\" with inputs in \"%s\"" % (binary, inputdir)) 
     alert("started at %s" % time.ctime())
@@ -364,24 +371,26 @@ def main(argc, argv):
 
     trace_cnt = 0
     total_traces = len(inputs) - len(traced)
-    ok("constraint tracing new inputs..")
-    for inputfile in inputs:
-        bname = os.path.basename(inputfile)
-        if bname not in traced:
-            constraint_trace(project, basedirectory, inputfile)
-            traced_catalogue = os.path.join(outputdir, ".traced")
-            with open(traced_catalogue, "a", 0644) as tp:
-                tp.write(bname + "\n")
-                tp.close()
-            trace_cnt += 1
 
+    inputs = [i for i in inputs if i not in traced] 
+
+    if len(inputs) > 0:
+        ok("constraint tracing new inputs..")
+        p = multiprocessing.Pool(thread_cnt)
+        p.map(constraint_trace,  inputs)
+    else:
+        die("no new input available, refusing to trace")
+    
+    # catalogue the traces so we don't have to do the work again
+    with open(os.path.join(outputdir, ".traced"), "a") as tp:
+        tp.write('\n'.join(inputs))
+        tp.close()
 
     # now that drilling is complete, let the user know some stats
-
-    if len(found) == 0:
+    if len(os.listdir(outputdir)) < 2:
         warning("driller unable to find any satisfiable basic blocks our fuzzer couldn't reach")
     else:
-        success("drilled into %d basic block(s) our fuzzer couldn't reach!" % len(found))
+        success("drilled into some basic blocks our fuzzer couldn't reach!")
         success("drilled inputs created and place into %s" % outputdir)
 
 if __name__ == "__main__":
