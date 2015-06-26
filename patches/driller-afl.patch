@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-06-25 21:07:08.649989664 -0700
++++ afl-fuzz.c	2015-06-26 14:39:24.204885355 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -73,7 +73,18 @@
  
    struct dirent **nl;
    s32 nl_cnt;
-@@ -2686,7 +2692,7 @@
+@@ -1280,6 +1286,10 @@
+ 
+     struct stat st;
+ 
++    /* jump over driller's traced catalogue */
++    if (!strcmp(nl[i]->d_name, ".traced"))
++        continue;
++
+     u8* fn = alloc_printf("%s/%s", in_dir, nl[i]->d_name);
+     u8* dfn = alloc_printf("%s/.state/deterministic_done/%s", in_dir, nl[i]->d_name);
+ 
+@@ -2686,7 +2696,7 @@
  
  static void link_or_copy(u8* old_path, u8* new_path) {
  
@@ -82,7 +93,7 @@
    s32 sfd, dfd;
    u8* tmp;
  
-@@ -2696,7 +2702,7 @@
+@@ -2696,7 +2706,7 @@
    if (sfd < 0) PFATAL("Unable to open '%s'", old_path);
  
    dfd = open(new_path, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -91,7 +102,7 @@
  
    tmp = ck_alloc(64 * 1024);
  
-@@ -3691,7 +3697,7 @@
+@@ -3691,7 +3701,7 @@
  
    sprintf(tmp + banner_pad, "%s " cLCY VERSION cLGN
            " (%s)",  crash_mode ? cPIN "peruvian were-rabbit" : 
@@ -100,7 +111,7 @@
  
    SAYF("\n%s\n\n", tmp);
  
-@@ -3948,6 +3954,8 @@
+@@ -3948,6 +3958,8 @@
         "  variable : %s%-10s " bSTG bV "\n", tmp, queued_variable ? cLRD : cNOR,
        no_var_check ? (u8*)"n/a" : DI(queued_variable));
  
@@ -109,7 +120,7 @@
    if (!bytes_trim_out) {
  
      sprintf(tmp, "n/a, ");
-@@ -3979,9 +3987,15 @@
+@@ -3979,9 +3991,15 @@
  
    }
  
@@ -126,7 +137,7 @@
    /* Provide some CPU utilization stats. */
  
    if (cpu_core_count) {
-@@ -6517,8 +6531,13 @@
+@@ -6517,8 +6535,13 @@
  
  #ifndef __APPLE__
  
@@ -141,7 +152,7 @@
  
  #else
  
-@@ -7166,7 +7185,7 @@
+@@ -7166,7 +7189,7 @@
  static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
  
    char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
@@ -150,7 +161,7 @@
  
    memcpy(new_argv + 3, argv + 1, sizeof(char*) * argc);
  
-@@ -7177,9 +7196,17 @@
+@@ -7177,9 +7200,17 @@
  
    tmp = getenv("AFL_PATH");
  
@@ -169,7 +180,7 @@
  
      if (access(cp, X_OK))
        FATAL("Unable to find '%s'", tmp);
-@@ -7196,7 +7223,8 @@
+@@ -7196,7 +7227,8 @@
  
      *rsl = 0;
  
@@ -179,7 +190,7 @@
      ck_free(own_copy);
  
      if (!access(cp, X_OK)) {
-@@ -7208,9 +7236,11 @@
+@@ -7208,9 +7240,11 @@
  
    } else ck_free(own_copy);
  
@@ -193,7 +204,7 @@
      return new_argv;
  
    }
-@@ -7257,6 +7287,90 @@
+@@ -7257,6 +7291,93 @@
  
  }
  
@@ -207,7 +218,7 @@
 +    DIR *dfd;
 +    struct dirent* in_file;
 +    u8 *fbuf;
-+    char *argv[5];
++    char *argv[8];
 +    char *file_path;
 +    char *driller_out;
 +
@@ -216,10 +227,13 @@
 +    driller_out = alloc_printf("%s/driller/", out_dir);
 +
 +    argv[0] = driller_path;
-+    argv[1] = target_binary_path;
-+    argv[2] = alloc_printf("%s/queue", out_dir);
-+    argv[3] = driller_out;
-+    argv[4] = NULL;
++    argv[1] = "-b";
++    argv[2] = target_binary_path;
++    argv[3] = "-i";
++    argv[4] = alloc_printf("%s/queue", out_dir);
++    argv[5] = "-o";
++    argv[6] = driller_out;
++    argv[7] = NULL;
 +
 +
 +    driller_pid = fork();
@@ -284,7 +298,7 @@
  
  /* Main entry point */
  
-@@ -7274,7 +7388,7 @@
+@@ -7274,7 +7395,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -293,7 +307,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7407,12 @@
+@@ -7293,6 +7414,12 @@
          out_dir = optarg;
          break;
  
@@ -306,7 +320,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7590,7 @@
+@@ -7470,7 +7597,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -315,7 +329,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7607,7 @@
+@@ -7487,6 +7614,7 @@
  
    start_time = get_cur_time();
  
@@ -323,7 +337,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7678,14 @@
+@@ -7557,6 +7685,14 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
