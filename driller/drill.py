@@ -65,7 +65,8 @@ def dump_to_file(prev, path):
     except simuvex.s_errors.SimFileError: # sometimes we don't even have symbolic data yet
         return ""
 
-    _, outfile = tempfile.mkstemp(prefix=pref)
+    fd, outfile = tempfile.mkstemp(prefix=pref)
+    os.close(fd) # close the fd, mkstemp returns an open one annoyingly
 
     fp = open(outfile, "w")
     fp.write(gen)
