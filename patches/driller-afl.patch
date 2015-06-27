@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-06-26 15:37:50.828824020 -0700
++++ afl-fuzz.c	2015-06-26 20:08:44.937219157 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -205,7 +205,7 @@
      return new_argv;
  
    }
-@@ -7257,6 +7292,95 @@
+@@ -7257,6 +7292,97 @@
  
  }
  
@@ -219,7 +219,7 @@
 +    DIR *dfd;
 +    struct dirent* in_file;
 +    u8 *fbuf;
-+    char *argv[10];
++    char *argv[12];
 +    char *file_path;
 +    char *driller_out;
 +
@@ -227,16 +227,18 @@
 +
 +    driller_out = alloc_printf("%s/driller/", out_dir);
 +
-+    argv[0] = driller_path;
-+    argv[1] = "-b";
-+    argv[2] = target_binary_path;
-+    argv[3] = "-i";
-+    argv[4] = alloc_printf("%s/queue", out_dir);
-+    argv[5] = "-o";
-+    argv[6] = driller_out;
-+    argv[7] = "-j";
-+    argv[8] = driller_procs;
-+    argv[9] = NULL;
++    argv[0]  = driller_path;
++    argv[1]  = "-b";
++    argv[2]  = target_binary_path;
++    argv[3]  = "-i";
++    argv[4]  = alloc_printf("%s/queue", out_dir);
++    argv[5]  = "-o";
++    argv[6]  = driller_out;
++    argv[7]  = "-j";
++    argv[8]  = driller_procs;
++    argv[9]  = "-f";
++    argv[10] = alloc_printf("%s/fuzz_bitmap", out_dir); 
++    argv[11] = NULL;
 +
 +
 +    driller_pid = fork();
@@ -301,7 +303,7 @@
  
  /* Main entry point */
  
-@@ -7274,7 +7398,7 @@
+@@ -7274,7 +7400,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -310,7 +312,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7417,17 @@
+@@ -7293,6 +7419,17 @@
          out_dir = optarg;
          break;
  
@@ -328,7 +330,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7605,7 @@
+@@ -7470,7 +7607,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -337,7 +339,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7622,7 @@
+@@ -7487,6 +7624,7 @@
  
    start_time = get_cur_time();
  
@@ -345,7 +347,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7693,14 @@
+@@ -7557,6 +7695,14 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
