@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pypy
 
 import angr
 import sys
@@ -173,7 +173,7 @@ def print_trace_stats(bb_cnt, fn, foundsomething):
     if foundsomething:
         excitement = termcolor.colored("!", "green", attrs=["bold"])
 
-    print "%s trace %02d/%d, %d bbs, %s %s" % (p, trace_cnt_v, total_traces, bb_cnt, fn, excitement) 
+    print "%s trace %02d/%d, %d bbs, %s %s" % (p, trace_cnt_v+1, total_traces, bb_cnt, fn, excitement) 
 
 def constraint_trace(fn):
     '''
@@ -322,6 +322,7 @@ def main(argc, argv):
     inputdir = args.inputdir
     outputdir = args.outputdir
     thread_cnt = args.thread_cnt
+
 
     if thread_cnt > multiprocessing.cpu_count():
         die("I wouldn't recommend starting more driller processes than you have CPUs")
