@@ -22,6 +22,9 @@ outputdir = None
 inputdir = None
 binary = None
 
+fuzz_bitmap = None
+map_size = None
+
 shared_trace_cnt = multiprocessing.Value('L', 0, lock=multiprocessing.Lock())
 total_traces = 0
 
@@ -56,9 +59,9 @@ traced = set()
 # set of generated inputs to avoid duplicates
 generated = set()
 
-def dump_to_file(path):
+def dump_to_file(prev, path):
     abspath = os.path.abspath(outputdir)
-    pref = os.path.join(abspath, "driller-%x-" % path.addr)
+    pref = os.path.join(abspath, "driller-%x-%x-" % (prev, path.addr))
 
     try:
         gen = path.state.posix.dumps(0)
@@ -199,6 +202,8 @@ def constraint_trace(fn):
     # branches this trace didn't take
     trace_group.stashes['missed'] = [ ] 
 
+    prev_loc = 0
+
     while len(trace_group.stashes['active']) > 0:
 
         bb_cnt = 0
@@ -241,7 +246,14 @@ def constraint_trace(fn):
                     warning("errored in trace following")
                     embed()
 
+            # adjust prev_loc
+
             prev_bb = current.addr
+
+            cur_loc = (prev_bb >> 4) ^ (prev_bb << 8) 
+            cur_loc = cur_loc & (map_size - 1)
+            prev_loc = cur_loc >> 1
+
             trace_group.drop(stash='unsat')
             trace_group.step()
 
@@ -249,8 +261,25 @@ def constraint_trace(fn):
 
         next_move = bb_trace[0]
 
+
+        # find all the state transitions none of our traces took
+        for path in trace_group.active:
+            cur_loc = path.addr  
+
+            # code pretty much copied from afl's afl-qemu-cpu-inl.h
+            cur_loc = ((cur_loc >> 4) ^ (cur_loc << 8)) 
+            cur_loc &= map_size - 1
+
+            hit = bool(ord(fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
+
+            if not hit:
+                outf = dump_to_file(prev_bb, path)
+                found_one = True
+
+
         trace_group.stash_not_addr(next_move, to_stash='missed')
 
+        '''
         # check if angr found any unconstrained paths, this is most likely a crash
         if len(trace_group.stashes['unconstrained']) > 0:
             for unconstrained in trace_group.stashes['unconstrained']:
@@ -277,6 +306,7 @@ def constraint_trace(fn):
                         # because of things like readuntil we don't want to add anything to 
                         # the encountered list just yet
 
+        '''
         # drop missed branches
         trace_group.drop(stash='missed')
         
@@ -305,6 +335,7 @@ def set_driller_simprocedures(project):
 def main(argc, argv):
     global binary_start_code, binary_end_code
     global outputdir, inputdir, binary
+    global fuzz_bitmap, map_size
     global trace_cnt, total_traces
     global project
     global basedirectory
@@ -314,7 +345,8 @@ def main(argc, argv):
     parser.add_argument('-i', dest='inputdir', type=str, metavar="<input_dir>", help='input directoy', required=True)
     parser.add_argument('-o', dest='outputdir', type=str, metavar="<output_dir>", help='output directoy', required=True)
     parser.add_argument('-b', dest='binary', type=str, metavar="<binary>", help='binary', required=True)
-    parser.add_argument('-j', default=multiprocessing.cpu_count(), dest='thread_cnt', type=int, metavar="<i>", help='number of tracer threads')
+    parser.add_argument('-f', dest='fuzz_bitmap', type=str, metavar="<fuzz_bitmap>", help='AFL\'s fuzz_bitmap', required=True)
+    parser.add_argument('-j', default=1, dest='thread_cnt', type=int, metavar="<i>", help='number of tracer threads')
 
     args = parser.parse_args()
 
@@ -322,11 +354,10 @@ def main(argc, argv):
     inputdir = args.inputdir
     outputdir = args.outputdir
     thread_cnt = args.thread_cnt
-
+    fuzz_bitmap_file = args.fuzz_bitmap
 
     if thread_cnt > multiprocessing.cpu_count():
         die("I wouldn't recommend starting more driller processes than you have CPUs")
-
 
     ok("drilling into \"%s\" with inputs in \"%s\"" % (binary, inputdir)) 
     alert("started at %s" % time.ctime())
@@ -357,6 +388,13 @@ def main(argc, argv):
                     os.remove(fpath)
 
     create_and_populate_traced(outputdir)
+
+    # open up the bitmap
+    try:
+        fuzz_bitmap = open(fuzz_bitmap_file).read()
+        map_size = len(fuzz_bitmap)
+    except IOError:
+        die("fuzz_bitmap \"%s\" not found" % fuzz_bitmap_file)
 
     project = angr.Project(binary)
 
