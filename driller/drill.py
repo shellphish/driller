@@ -56,9 +56,6 @@ qemu_traces = {}
 # dict of input files which have been traced in previous runs
 traced = set()
 
-# set of generated inputs to avoid duplicates
-generated = set()
-
 def dump_to_file(prev, path):
     abspath = os.path.abspath(outputdir)
     pref = os.path.join(abspath, "driller-%x-%x-" % (prev, path.addr))
@@ -67,11 +64,6 @@ def dump_to_file(prev, path):
         gen = path.state.posix.dumps(0)
     except simuvex.s_errors.SimFileError: # sometimes we don't even have symbolic data yet
         return ""
-
-    if gen in generated:
-        return ""
-
-    generated.add(gen)
 
     _, outfile = tempfile.mkstemp(prefix=pref)
 
@@ -261,7 +253,6 @@ def constraint_trace(fn):
 
         next_move = bb_trace[0]
 
-
         # find all the state transitions none of our traces took
         for path in trace_group.active:
             cur_loc = path.addr  
@@ -273,8 +264,10 @@ def constraint_trace(fn):
             hit = bool(ord(fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
 
             if not hit:
-                outf = dump_to_file(prev_bb, path)
-                found_one = True
+                if path.state.satisfiable():
+                    outf = dump_to_file(prev_bb, path)
+                    if outf != "":
+                        found_one = True
 
 
         trace_group.stash_not_addr(next_move, to_stash='missed')
@@ -286,27 +279,10 @@ def constraint_trace(fn):
                 dump_to_file(unconstrained)
                 found_one = True
             trace_group.drop(stash='unconstrained')
+        '''
 
         assert len(trace_group.stashes['active']) < 2
 
-        # if we just missed we check to see if another branch has encountered it
-        # this *should* be a fast check because it's a hashmap
-        for missed_branch in trace_group.stashes['missed']:
-            if missed_branch.addr not in encountered:
-                # before we waste any memory on this guy, make sure it's reachable
-                if missed_branch.state.satisfiable():
-                    # greedily dump the output 
-                    outf = dump_to_file(missed_branch)
-
-                    if outf != "":                        
-                        if missed_branch.addr not in found:
-                            found_one = True
-
-                        found[missed_branch.addr] = outf
-                        # because of things like readuntil we don't want to add anything to 
-                        # the encountered list just yet
-
-        '''
         # drop missed branches
         trace_group.drop(stash='missed')
         
@@ -360,6 +336,7 @@ def main(argc, argv):
         die("I wouldn't recommend starting more driller processes than you have CPUs")
 
     ok("drilling into \"%s\" with inputs in \"%s\"" % (binary, inputdir)) 
+    ok("using %d processes to get the job done" % thread_cnt)
     alert("started at %s" % time.ctime())
     if os.path.isdir(inputdir):
         inputs = os.listdir(inputdir)
