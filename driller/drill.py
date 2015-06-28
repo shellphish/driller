@@ -53,8 +53,15 @@ encountered = {}
 found = {}
 qemu_traces = {}
 
-# dict of input files which have been traced in previous runs
+# set of input files which have been traced in previous runs
 traced = set()
+
+# set of inputs which have already been generated
+# we maintain this list to avoid overwhelming AFL with redundant testcases after a driller run
+# as far as I know this shouldn't be necessary and two different calls to dump_to_file should
+# only be called on either different state transitions or when different data affects an already 
+# solved state transition
+generated = set()
 
 def dump_to_file(indicies, content, prev, path):
     '''
@@ -77,6 +84,10 @@ def dump_to_file(indicies, content, prev, path):
     for index in indicies:
         out = out[:index] + gen[index] + out[index+1:]
 
+    if out in generated:
+        return ""
+
+    generated.add(out)
 
     fd, outfile = tempfile.mkstemp(prefix=pref)
     os.close(fd) # close the fd, mkstemp returns an open one annoyingly
