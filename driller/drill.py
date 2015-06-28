@@ -297,7 +297,7 @@ def constraint_trace(fn):
                     indices = [ ] 
                     for i in path.guards[-1].variables:
                         if i.startswith('file_/dev/stdin_0_'):
-                            indices.append(int(i.split('file_/dev/stdin_0_')[1].split('_')[0]))
+                            indices.append(int(i.split('file_/dev/stdin_0_')[1].split('_')[0], 16))
                     if len(indices) > 0:
                         outf = dump_to_file(indices, content, prev_bb, path)
                         if outf != "":
