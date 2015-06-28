@@ -56,7 +56,14 @@ qemu_traces = {}
 # dict of input files which have been traced in previous runs
 traced = set()
 
-def dump_to_file(prev, path):
+def dump_to_file(indicies, content, prev, path):
+    '''
+    :param indices: a list of integers which contain new data which trigger the state transition
+    :param content: the content of the input file which missed the state transition
+    :param prev: an integer address of the basic block before path
+    :param path: a path object which is the destination of the new state transition
+    :return: the name of the output file generated as a string
+    '''
     abspath = os.path.abspath(outputdir)
     pref = os.path.join(abspath, "driller-%x-%x-" % (prev, path.addr))
 
@@ -65,11 +72,17 @@ def dump_to_file(prev, path):
     except simuvex.s_errors.SimFileError: # sometimes we don't even have symbolic data yet
         return ""
 
+
+    out = content
+    for index in indicies:
+        out = out[:index] + gen[index] + out[index+1:]
+
+
     fd, outfile = tempfile.mkstemp(prefix=pref)
     os.close(fd) # close the fd, mkstemp returns an open one annoyingly
 
     fp = open(outfile, "w")
-    fp.write(gen)
+    fp.write(out)
     fp.close()
 
     return outfile
@@ -179,12 +192,15 @@ def constraint_trace(fn):
 
     fn_base = os.path.basename(fn)
 
+    content = open(fn).read()
+
     # get the basic block trace from qemu, this will differ slighting from angr's trace
     bb_trace = qemu_traces[fn]
     total_length = len(bb_trace)
 
     parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
     trace_group = project.path_group(immutable=False, save_unconstrained=True, save_unsat=True, paths=[parent_path])
+
 
     # did this trace produce any interesting results?
     found_one = False
@@ -266,9 +282,15 @@ def constraint_trace(fn):
 
             if not hit:
                 if path.state.satisfiable():
-                    outf = dump_to_file(prev_bb, path)
-                    if outf != "":
-                        found_one = True
+                    # we're only concerned about stdin
+                    indices = [ ] 
+                    for i in path.guards[-1].variables:
+                        if i.startswith('file_/dev/stdin_0_'):
+                            indices.append(int(i.split('file_/dev/stdin_0_')[1].split('_')[0]))
+                    if len(indices) > 0:
+                        outf = dump_to_file(indices, content, prev_bb, path)
+                        if outf != "":
+                            found_one = True
 
 
         trace_group.stash_not_addr(next_move, to_stash='missed')
@@ -292,6 +314,8 @@ def constraint_trace(fn):
 
     if len(trace_group.errored) > 0:
         warning("some paths errored! this is most likely bad and could be a symptom of a bug!")
+        for errored in trace_group.errored:
+            warning(errored.error)
 
     return
 
