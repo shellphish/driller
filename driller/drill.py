@@ -191,7 +191,10 @@ def print_trace_stats(bb_cnt, fn, foundsomething):
     p = termcolor.colored("[*]", "cyan", attrs=["bold"])
     excitement = ""
     if foundsomething:
-        excitement = termcolor.colored("!", "green", attrs=["bold"])
+        if foundsomething == 2:
+            excitement = termcolor.colored("!", "green", attrs=["bold"])
+        if foundsomething == 1:
+            excitement = termcolor.colored("!", "red", attrs=["bold"])
 
     print "%s trace %02d/%d, %d bbs, %s %s" % (p, trace_cnt_v+1, total_traces, bb_cnt, fn, excitement) 
 
@@ -214,7 +217,7 @@ def constraint_trace(fn):
 
 
     # did this trace produce any interesting results?
-    found_one = False
+    found_one = 0
 
     # what the trace thinks is the next basic block
     next_move = project.entry
@@ -301,7 +304,10 @@ def constraint_trace(fn):
                     if len(indices) > 0:
                         outf = dump_to_file(indices, content, prev_bb, path)
                         if outf != "":
-                            found_one = True
+                            found_one = 2
+                else:
+                    if found_one != 2:
+                        found_one = 1
 
 
         trace_group.stash_not_addr(next_move, to_stash='missed')
