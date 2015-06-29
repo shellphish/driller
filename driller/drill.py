@@ -431,7 +431,7 @@ def main(argc, argv):
                 if f != ".traced":
                     os.remove(fpath)
 
-    fuzzer_driller_dir = "%s/../../%s_driller/" % (outputdir, sync_id)
+    fuzzer_driller_dir = "%s/../../%s_driller/queue/" % (outputdir, sync_id)
     try:
         os.makedirs(fuzzer_driller_dir)
     except OSError:
