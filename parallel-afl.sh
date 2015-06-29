@@ -66,7 +66,7 @@ log_success "\t$SYNC_ID-master, PID: $!, logfile: $MASTER_LOG"
 
 log_info "spinning up $AFL_THREADS AFL slaves who can each invoke $DRILLER_THREADS driller procs"
 
-for i in $(seq 1 $DRILLER_THREADS); do
+for i in $(seq 1 $AFL_THREADS); do
     LOG_FILE="$SYNC_ID-$i.log"
     $AFL_BIN -m 8G -Q -D "$DRILLER_PATH" -i $INPUT_DIR -o $SYNC_DIR -j $DRILLER_THREADS -S "$SYNC_ID-$i" -- $BINARY > $LOG_FILE &
 
