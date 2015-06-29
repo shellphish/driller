@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-06-26 20:08:44.937219157 -0700
++++ afl-fuzz.c	2015-06-28 21:21:05.240667948 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -352,7 +352,7 @@
      skipped_fuzz = fuzz_one(use_argv);
  
 +    /* when AFL goes blue we invoke driller */
-+    if (cycles_wo_finds > 0 && unique_crashes == 0)
++    if (cycles_wo_finds > 0 && unique_crashes == 0 && force_deterministic == 1)
 +    {
 +        invoke_driller(use_argv);
 +        cycles_wo_finds = 0;
