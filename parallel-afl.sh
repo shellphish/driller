@@ -18,6 +18,52 @@ function die() {
 }
 
 function show_stats() {
+    CUR_TIME=$(date +%s)
+
+    RUN_UNIX=$(($CUR_TIME - $3))
+    RUN_DAYS=$((RUN_UNIX / 60 / 60 / 24))
+    RUN_HRS=$(((RUN_UNIX / 60 / 60) % 24))
+    RUN_MINS=$(((RUN_UNIX / 60) % 60))
+    RUN_SECS=$(((RUN_UNIX) % 60))
+
+    TIME_STR=""
+    if [[ $RUN_DAYS > 0 ]]; then
+        TIME_STR="$RUN_DAYS "
+        if [[ $RUN_DAYS > 1 ]]; then
+            TIME_STR="$TIME_STR days,"
+        else
+            TIME_STR="$TIME_STR day,"
+        fi
+    fi
+
+    if [[ $RUN_HRS > 0 ]]; then
+        TIME_STR="$TIME_STR $RUN_HRS" 
+        if [[ $RUN_HRS > 1 ]]; then
+            TIME_STR="$TIME_STR hours,"
+        else
+            TIME_STR="$TIME_STR hour,"
+        fi
+    fi
+
+
+    if [[ $RUN_MINS > 0 ]]; then
+        TIME_STR="$TIME_STR $RUN_MINS" 
+        if [[ $RUN_MINS > 1 ]]; then
+            TIME_STR="$TIME_STR minutes,"
+        else
+            TIME_STR="$TIME_STR minute,"
+        fi
+    fi
+
+    TIME_STR="$TIME_STR $RUN_SECS" 
+    if [[ $RUN_SECS > 1 ]]; then
+        TIME_STR="$TIME_STR seconds"
+    else
+        TIME_STR="$TIME_STR second"
+    fi
+
+    log_info runtime: $TIME_STR
+
     $1/afl-1.83b/afl-whatsup $2 | tail -n 9
 }
 
@@ -26,7 +72,7 @@ function terminate() {
     echo -e "\e[1;31m+++ Testing aborted by user +++\e[0m" 
     echo
     log_info "all fuzzers should be dead, here's afl-whatsup status to confirm"
-    show_stats $1 $2
+    show_stats $1 $2 $3
     exit 1
 }
 
@@ -34,6 +80,7 @@ if [[ $# != 6 ]]; then
     echo "usage: $0 <binary> <sync_id> <input_dir> <sync_dir> <afl-threads> <driller-threads>"
     exit 1
 fi
+
 
 BINARY="$1"
 SYNC_ID="$2"
@@ -76,9 +123,12 @@ for i in $(seq 1 $AFL_THREADS); do
     log_success "\t$SYNC_ID-$i, PID: $!, logfile: $LOG_FILE"
 done
 
-trap "terminate $DRILLER_DIR $SYNC_DIR" SIGINT
+START_TIME="$(date +%s)"
+log_info "everything spun up at $(date -d @$START_TIME)"
+
+trap "terminate $DRILLER_DIR $SYNC_DIR $START_TIME" SIGINT
 
 while read line; do
     log_info "displaying summary from afl-whatsup"
-    show_stats $DRILLER_DIR $SYNC_DIR
+    show_stats $DRILLER_DIR $SYNC_DIR $START_TIME
 done
