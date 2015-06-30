@@ -28,9 +28,8 @@ map_size = None
 sync_id = None
 fuzzer_driller_dir = None
 
-#shared_trace_cnt = multiprocessing.Value('L', 0, lock=multiprocessing.Lock())
 shared_trace_cnt = multiprocessing.Value('L', 0, lock=True)
-#shared_generated = multiprocessing.Array('(L, (L, L))', )
+driller_stats_lock = multiprocessing.Lock()
 total_traces = 0
 
 def ok(s):
@@ -99,12 +98,13 @@ def dump_to_file(prev, path):
     fp.write(gen)
     fp.close()
 
-    # TODO: fix this race condition
     cnt = 0
     try:
+        driller_stats_lock.acquire()
         dstats = open("%s/.driller_stats" % fuzzer_driller_dir)
         cnt = int(dstats.read())
         dstats.close()
+        driller_stats_lock.release()
     except IOError:
         pass
 
@@ -114,9 +114,11 @@ def dump_to_file(prev, path):
     fp.write(gen)
     fp.close
 
+    driller_stats_lock.acquire()
     dstats = open("%s/.driller_stats" % fuzzer_driller_dir, "w")
     dstats.write(str(cnt + 1))
     dstats.close()
+    driller_stats_lock.release()
 
     return outfile
 
