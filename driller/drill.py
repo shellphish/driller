@@ -29,7 +29,7 @@ sync_id = None
 fuzzer_driller_dir = None
 
 shared_trace_cnt = multiprocessing.Value('L', 0, lock=True)
-driller_stats_lock = multiprocessing.Lock()
+driller_stats_lock = multiprocessing.RLock()
 total_traces = 0
 
 def ok(s):
@@ -67,14 +67,32 @@ traced = set()
 # solved state transition
 generated = set()
 
+def in_catalogue(var_cnt, prev_addr, next_addr):
+    '''
+    really slow experimental function
+    '''
+
+    for entry in os.listdir(fuzzer_driller_dir):
+        if entry == ".driller_stats":
+            continue
+        splitted = entry.split("-")
+        vcnt  = splitted[1] 
+        paddr = splitted[2]
+        naddr = splitted[3]
+        if vcnt == var_cnt and prev_addr == paddr and next_addr == naddr:
+            return True
+
+    return False
+
 def dump_to_file(prev, path):
     '''
     :param prev: an integer address of the basic block before path
     :param path: a path object which is the destination of the new state transition
     :return: the name of the output file generated as a string
     '''
+    var_cnt = len(path.guards[-1].variables) if path.guards[-1] is not None else 0
     abspath = os.path.abspath(outputdir)
-    pref = os.path.join(abspath, "driller-%x-%x-" % (prev, path.addr))
+    pref = os.path.join(abspath, "driller-%d-%x-%x-" % (var_cnt, prev, path.addr))
 
     try:
         gen = path.state.posix.dumps(0)
@@ -90,6 +108,9 @@ def dump_to_file(prev, path):
         return ""
 
     generated.add(statpair)
+
+    if in_catalogue(var_cnt, prev, path.addr):
+        return ""
 
     fd, outfile = tempfile.mkstemp(prefix=pref)
     os.close(fd) # close the fd, mkstemp returns an open one annoyingly
