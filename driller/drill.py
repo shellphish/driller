@@ -25,6 +25,9 @@ binary = None
 fuzz_bitmap = None
 map_size = None
 
+sync_id = None
+fuzzer_driller_dir = None
+
 shared_trace_cnt = multiprocessing.Value('L', 0, lock=multiprocessing.Lock())
 total_traces = 0
 
@@ -95,6 +98,25 @@ def dump_to_file(indicies, content, prev, path):
     fp = open(outfile, "w")
     fp.write(out)
     fp.close()
+
+    # TODO: fix this race condition
+    cnt = 0
+    try:
+        dstats = open("%s/.driller_stats" % fuzzer_driller_dir)
+        cnt = int(dstats.read())
+        dstats.close()
+    except IOError:
+        pass
+
+    basename = os.path.basename(outfile)
+    # also write the file to the the special output directory
+    fp = open("%s/id:%06u,orig:%s" % (fuzzer_driller_dir, cnt, basename), "w")
+    fp.write(out)
+    fp.close
+
+    dstats = open("%s/.driller_stats" % fuzzer_driller_dir, "w")
+    dstats.write(str(cnt + 1))
+    dstats.close()
 
     return outfile
 
@@ -354,6 +376,7 @@ def main(argc, argv):
     global binary_start_code, binary_end_code
     global outputdir, inputdir, binary
     global fuzz_bitmap, map_size
+    global sync_id, fuzzer_driller_dir
     global trace_cnt, total_traces
     global project
     global basedirectory
@@ -365,6 +388,7 @@ def main(argc, argv):
     parser.add_argument('-b', dest='binary', type=str, metavar="<binary>", help='binary', required=True)
     parser.add_argument('-f', dest='fuzz_bitmap', type=str, metavar="<fuzz_bitmap>", help='AFL\'s fuzz_bitmap', required=True)
     parser.add_argument('-j', default=1, dest='thread_cnt', type=int, metavar="<i>", help='number of tracer threads')
+    parser.add_argument('-s', dest='sync_id', type=str, metavar="<sync_id>", help='sync id of the fuzzer invoking us', required=True)
 
     args = parser.parse_args()
 
@@ -373,6 +397,7 @@ def main(argc, argv):
     outputdir = args.outputdir
     thread_cnt = args.thread_cnt
     fuzz_bitmap_file = args.fuzz_bitmap
+    sync_id = args.sync_id
 
     if thread_cnt > multiprocessing.cpu_count():
         die("I wouldn't recommend starting more driller processes than you have CPUs")
@@ -405,6 +430,13 @@ def main(argc, argv):
                 fpath = os.path.join(outputdir, f)
                 if f != ".traced":
                     os.remove(fpath)
+
+    fuzzer_driller_dir = "%s/../../%s_driller/queue/" % (outputdir, sync_id)
+    try:
+        os.makedirs(fuzzer_driller_dir)
+    except OSError:
+        if not os.path.isdir(fuzzer_driller_dir):
+            die("cannot make fuzzer's personal driller directory \"%s\"" % fuzzer_driller_dir)
 
     create_and_populate_traced(outputdir)
 
