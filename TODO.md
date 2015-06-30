@@ -1,12 +1,14 @@
-* Add state transition drilling
+* Add stricter checks for whether a state transition is worth dumping
+    - Along with this a new experimental feature for keeping track of which state transitions AFL has
+      trouble getting through, these could be found by looking at which state transitions we drilled
+      into and seeing how many AFL inputs were able to build on top of these drilled inputs 
+      successfully.
 
 * Add timeout to QEMU tracing for binaries which don't terminate
 
 * Make sure unconstrained dumping is working
 
 * Use taint tracking to speed up tracing
-
-* Get AFL to test driller outputs as soon as they appear
 
 * test cases for driller
 
