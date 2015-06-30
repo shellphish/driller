@@ -146,7 +146,8 @@ def generate_qemu_trace(basedirectory, binary, arch, inputfile):
     '''
 
     qemu_path = os.path.join(basedirectory, "../driller_qemu", "driller-qemu-%s" % arch)
-    _, logfile = tempfile.mkstemp(prefix="/dev/shm/driller-trace-")
+    fd, logfile = tempfile.mkstemp(prefix="/dev/shm/driller-trace-")
+    os.close(fd)
 
     # launch qemu asking it to trace the binary for us
     args = [qemu_path, "-D", logfile, "-d", "exec", binary]
