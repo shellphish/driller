@@ -62,7 +62,7 @@ function show_stats() {
         TIME_STR="$TIME_STR second"
     fi
 
-    log_info runtime: $TIME_STR
+    log_info real runtime: $TIME_STR
 
     $1/afl-1.83b/afl-whatsup $2 | tail -n 9
 }
@@ -110,8 +110,15 @@ fi
 
 log_success "\t$SYNC_ID-master, PID: $!, logfile: $MASTER_LOG"
 
+AFL_THREADS=$(($AFL_THREADS - 1))
 
-log_info "spinning up $AFL_THREADS AFL slaves who can each invoke $DRILLER_THREADS driller procs"
+if [[ $AFL_THREADS < 1 ]]; then
+    log_error "number of afl threads specified will lead to no AFL slaves being spawned"
+    echo -e "\tno drilling will ever be performed because only AFL slaves can invoke driller"
+    echo -e "\tthis is probably not what you want"
+else
+    log_info "spinning up $AFL_THREADS AFL slaves who can each invoke $DRILLER_THREADS driller procs"
+fi
 
 for i in $(seq 1 $AFL_THREADS); do
     LOG_FILE="$SYNC_ID-$i.log"
