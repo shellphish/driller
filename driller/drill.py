@@ -80,13 +80,13 @@ def dump_to_file(prev, path):
     except simuvex.s_errors.SimFileError: # sometimes we don't even have symbolic data yet
         return ""
 
+    # perform a number of checks to see if this input is worth writing to disk
 
-    out = gen
-
-    if out in generated:
+    statpair = (len(gen), (prev , path.addr))
+    if statpair in generated:
         return ""
 
-    generated.add(out)
+    generated.add(statpair)
 
     fd, outfile = tempfile.mkstemp(prefix=pref)
     os.close(fd) # close the fd, mkstemp returns an open one annoyingly
