@@ -81,6 +81,8 @@ def dump_to_file(prev, path):
         return ""
 
     # perform a number of checks to see if this input is worth writing to disk
+    if not (len(gen) > 0):
+        return ""
 
     statpair = (len(gen), (prev , path.addr))
     if statpair in generated:
