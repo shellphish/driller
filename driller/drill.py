@@ -83,9 +83,11 @@ def dump_to_file(indicies, content, prev, path):
         return ""
 
 
-    out = content
+    out = gen
+    '''
     for index in indicies:
         out = out[:index] + gen[index] + out[index+1:]
+    '''
 
     if out in generated:
         return ""
