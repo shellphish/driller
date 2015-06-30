@@ -81,6 +81,10 @@ if [[ $# != 6 ]]; then
     exit 1
 fi
 
+if [[ $VIRTUAL_ENV == "" ]]; then
+    die "not on a virtualenv! crashing now opposed to later!"
+fi
+
 
 BINARY="$1"
 SYNC_ID="$2"
