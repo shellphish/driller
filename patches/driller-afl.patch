@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-06-26 15:37:50.828824020 -0700
++++ afl-fuzz.c	2015-06-29 00:19:03.568875847 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -138,7 +138,20 @@
    /* Provide some CPU utilization stats. */
  
    if (cpu_core_count) {
-@@ -6517,8 +6536,13 @@
+@@ -6284,6 +6303,12 @@
+ 
+     if (sd_ent->d_name[0] == '.' || !strcmp(sync_id, sd_ent->d_name)) continue;
+ 
++    u8 *driller_dir = alloc_printf("%s_driller", sync_id);
++    u8 ret = strcmp(driller_dir, sd_ent->d_name);
++    ck_free(driller_dir);
++
++    if (!ret) continue;
++
+     /* Skip anything that doesn't have a queue/ subdirectory. */
+ 
+     qd_path = alloc_printf("%s/%s/queue", sync_dir, sd_ent->d_name);
+@@ -6517,8 +6542,13 @@
  
  #ifndef __APPLE__
  
@@ -153,7 +166,7 @@
  
  #else
  
-@@ -7166,7 +7190,7 @@
+@@ -7166,7 +7196,7 @@
  static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
  
    char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
@@ -162,7 +175,7 @@
  
    memcpy(new_argv + 3, argv + 1, sizeof(char*) * argc);
  
-@@ -7177,9 +7201,17 @@
+@@ -7177,9 +7207,17 @@
  
    tmp = getenv("AFL_PATH");
  
@@ -181,7 +194,7 @@
  
      if (access(cp, X_OK))
        FATAL("Unable to find '%s'", tmp);
-@@ -7196,7 +7228,8 @@
+@@ -7196,7 +7234,8 @@
  
      *rsl = 0;
  
@@ -191,7 +204,7 @@
      ck_free(own_copy);
  
      if (!access(cp, X_OK)) {
-@@ -7208,9 +7241,11 @@
+@@ -7208,9 +7247,11 @@
  
    } else ck_free(own_copy);
  
@@ -205,7 +218,7 @@
      return new_argv;
  
    }
-@@ -7257,6 +7292,95 @@
+@@ -7257,6 +7298,99 @@
  
  }
  
@@ -219,7 +232,7 @@
 +    DIR *dfd;
 +    struct dirent* in_file;
 +    u8 *fbuf;
-+    char *argv[10];
++    char *argv[14];
 +    char *file_path;
 +    char *driller_out;
 +
@@ -227,16 +240,20 @@
 +
 +    driller_out = alloc_printf("%s/driller/", out_dir);
 +
-+    argv[0] = driller_path;
-+    argv[1] = "-b";
-+    argv[2] = target_binary_path;
-+    argv[3] = "-i";
-+    argv[4] = alloc_printf("%s/queue", out_dir);
-+    argv[5] = "-o";
-+    argv[6] = driller_out;
-+    argv[7] = "-j";
-+    argv[8] = driller_procs;
-+    argv[9] = NULL;
++    argv[0]  = driller_path;
++    argv[1]  = "-b";
++    argv[2]  = target_binary_path;
++    argv[3]  = "-i";
++    argv[4]  = alloc_printf("%s/queue", out_dir);
++    argv[5]  = "-o";
++    argv[6]  = driller_out;
++    argv[7]  = "-j";
++    argv[8]  = driller_procs;
++    argv[9]  = "-f";
++    argv[10] = alloc_printf("%s/fuzz_bitmap", out_dir); 
++    argv[11] = "-s";
++    argv[12] = sync_id;
++    argv[13] = NULL;
 +
 +
 +    driller_pid = fork();
@@ -301,7 +318,7 @@
  
  /* Main entry point */
  
-@@ -7274,7 +7398,7 @@
+@@ -7274,7 +7408,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -310,7 +327,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7417,17 @@
+@@ -7293,6 +7427,17 @@
          out_dir = optarg;
          break;
  
@@ -328,7 +345,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7605,7 @@
+@@ -7470,7 +7615,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -337,7 +354,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7622,7 @@
+@@ -7487,6 +7632,7 @@
  
    start_time = get_cur_time();
  
@@ -345,12 +362,12 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7693,14 @@
+@@ -7557,6 +7703,14 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
 +    /* when AFL goes blue we invoke driller */
-+    if (cycles_wo_finds > 0 && unique_crashes == 0)
++    if (cycles_wo_finds > 0 && unique_crashes == 0 && !force_deterministic && driller_path)
 +    {
 +        invoke_driller(use_argv);
 +        cycles_wo_finds = 0;

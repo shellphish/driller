@@ -22,7 +22,15 @@ outputdir = None
 inputdir = None
 binary = None
 
-shared_trace_cnt = multiprocessing.Value('L', 0, lock=multiprocessing.Lock())
+fuzz_bitmap = None
+map_size = None
+
+sync_id = None
+fuzzer_driller_dir = None
+
+#shared_trace_cnt = multiprocessing.Value('L', 0, lock=multiprocessing.Lock())
+shared_trace_cnt = multiprocessing.Value('L', 0, lock=True)
+#shared_generated = multiprocessing.Array('(L, (L, L))', )
 total_traces = 0
 
 def ok(s):
@@ -50,31 +58,65 @@ encountered = {}
 found = {}
 qemu_traces = {}
 
-# dict of input files which have been traced in previous runs
+# set of input files which have been traced in previous runs
 traced = set()
 
-# set of generated inputs to avoid duplicates
+# set of inputs which have already been generated
+# we maintain this list to avoid overwhelming AFL with redundant testcases after a driller run
+# as far as I know this shouldn't be necessary and two different calls to dump_to_file should
+# only be called on either different state transitions or when different data affects an already 
+# solved state transition
 generated = set()
 
-def dump_to_file(path):
+def dump_to_file(prev, path):
+    '''
+    :param prev: an integer address of the basic block before path
+    :param path: a path object which is the destination of the new state transition
+    :return: the name of the output file generated as a string
+    '''
     abspath = os.path.abspath(outputdir)
-    pref = os.path.join(abspath, "driller-%x-" % path.addr)
+    pref = os.path.join(abspath, "driller-%x-%x-" % (prev, path.addr))
 
     try:
         gen = path.state.posix.dumps(0)
     except simuvex.s_errors.SimFileError: # sometimes we don't even have symbolic data yet
         return ""
 
-    if gen in generated:
+    # perform a number of checks to see if this input is worth writing to disk
+    if not (len(gen) > 0):
         return ""
 
-    generated.add(gen)
+    statpair = (len(gen), (prev , path.addr))
+    if statpair in generated:
+        return ""
 
-    _, outfile = tempfile.mkstemp(prefix=pref)
+    generated.add(statpair)
+
+    fd, outfile = tempfile.mkstemp(prefix=pref)
+    os.close(fd) # close the fd, mkstemp returns an open one annoyingly
 
     fp = open(outfile, "w")
     fp.write(gen)
     fp.close()
+
+    # TODO: fix this race condition
+    cnt = 0
+    try:
+        dstats = open("%s/.driller_stats" % fuzzer_driller_dir)
+        cnt = int(dstats.read())
+        dstats.close()
+    except IOError:
+        pass
+
+    basename = os.path.basename(outfile)
+    # also write the file to the the special output directory
+    fp = open("%s/id:%06u,orig:%s" % (fuzzer_driller_dir, cnt, basename), "w")
+    fp.write(gen)
+    fp.close
+
+    dstats = open("%s/.driller_stats" % fuzzer_driller_dir, "w")
+    dstats.write(str(cnt + 1))
+    dstats.close()
 
     return outfile
 
@@ -108,7 +150,8 @@ def generate_qemu_trace(basedirectory, binary, arch, inputfile):
     '''
 
     qemu_path = os.path.join(basedirectory, "../driller_qemu", "driller-qemu-%s" % arch)
-    _, logfile = tempfile.mkstemp(prefix="/dev/shm/driller-trace-")
+    fd, logfile = tempfile.mkstemp(prefix="/dev/shm/driller-trace-")
+    os.close(fd)
 
     # launch qemu asking it to trace the binary for us
     args = [qemu_path, "-D", logfile, "-d", "exec", binary]
@@ -171,7 +214,10 @@ def print_trace_stats(bb_cnt, fn, foundsomething):
     p = termcolor.colored("[*]", "cyan", attrs=["bold"])
     excitement = ""
     if foundsomething:
-        excitement = termcolor.colored("!", "green", attrs=["bold"])
+        if foundsomething == 2:
+            excitement = termcolor.colored("!", "green", attrs=["bold"])
+        if foundsomething == 1:
+            excitement = termcolor.colored("!", "red", attrs=["bold"])
 
     print "%s trace %02d/%d, %d bbs, %s %s" % (p, trace_cnt_v+1, total_traces, bb_cnt, fn, excitement) 
 
@@ -183,6 +229,8 @@ def constraint_trace(fn):
 
     fn_base = os.path.basename(fn)
 
+    content = open(fn).read()
+
     # get the basic block trace from qemu, this will differ slighting from angr's trace
     bb_trace = qemu_traces[fn]
     total_length = len(bb_trace)
@@ -190,14 +238,17 @@ def constraint_trace(fn):
     parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
     trace_group = project.path_group(immutable=False, save_unconstrained=True, save_unsat=True, paths=[parent_path])
 
+
     # did this trace produce any interesting results?
-    found_one = False
+    found_one = 0
 
     # what the trace thinks is the next basic block
     next_move = project.entry
 
     # branches this trace didn't take
     trace_group.stashes['missed'] = [ ] 
+
+    prev_loc = 0
 
     while len(trace_group.stashes['active']) > 0:
 
@@ -217,7 +268,9 @@ def constraint_trace(fn):
                 # sometimes angr explores one block too many. ie after a _terminate syscall angr
                 # may step into the basic block after the call, this case catches that
                 print_trace_stats(total_length, fn, found_one)
+                shared_trace_cnt.acquire()
                 shared_trace_cnt.value += 1
+                shared_trace_cnt.release()
                 return
 
             if current.addr == bb_trace[bb_cnt]: # the trace and angr agrees, just increment cnt
@@ -241,7 +294,14 @@ def constraint_trace(fn):
                     warning("errored in trace following")
                     embed()
 
+            # adjust prev_loc
+
             prev_bb = current.addr
+
+            cur_loc = (prev_bb >> 4) ^ (prev_bb << 8) 
+            cur_loc = cur_loc & (map_size - 1)
+            prev_loc = cur_loc >> 1
+
             trace_group.drop(stash='unsat')
             trace_group.step()
 
@@ -249,42 +309,51 @@ def constraint_trace(fn):
 
         next_move = bb_trace[0]
 
+        # find all the state transitions none of our traces took
+        for path in trace_group.active:
+            cur_loc = path.addr  
+
+            # code pretty much copied from afl's afl-qemu-cpu-inl.h
+            cur_loc = ((cur_loc >> 4) ^ (cur_loc << 8)) 
+            cur_loc &= map_size - 1
+
+            hit = bool(ord(fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
+
+            if not hit:
+                if path.state.satisfiable():
+                    outf = dump_to_file(prev_bb, path)
+                    if outf != "":
+                        found_one = 2
+                else:
+                    if found_one != 2:
+                        found_one = 1
+
+
         trace_group.stash_not_addr(next_move, to_stash='missed')
 
+        '''
         # check if angr found any unconstrained paths, this is most likely a crash
         if len(trace_group.stashes['unconstrained']) > 0:
             for unconstrained in trace_group.stashes['unconstrained']:
                 dump_to_file(unconstrained)
                 found_one = True
             trace_group.drop(stash='unconstrained')
+        '''
 
         assert len(trace_group.stashes['active']) < 2
-
-        # if we just missed we check to see if another branch has encountered it
-        # this *should* be a fast check because it's a hashmap
-        for missed_branch in trace_group.stashes['missed']:
-            if missed_branch.addr not in encountered:
-                # before we waste any memory on this guy, make sure it's reachable
-                if missed_branch.state.satisfiable():
-                    # greedily dump the output 
-                    outf = dump_to_file(missed_branch)
-
-                    if outf != "":                        
-                        if missed_branch.addr not in found:
-                            found_one = True
-
-                        found[missed_branch.addr] = outf
-                        # because of things like readuntil we don't want to add anything to 
-                        # the encountered list just yet
 
         # drop missed branches
         trace_group.drop(stash='missed')
         
     print_trace_stats(total_length, fn, found_one)
+    shared_trace_cnt.acquire()
     shared_trace_cnt.value += 1
+    shared_trace_cnt.release()
 
     if len(trace_group.errored) > 0:
         warning("some paths errored! this is most likely bad and could be a symptom of a bug!")
+        for errored in trace_group.errored:
+            warning(errored.error)
 
     return
 
@@ -305,6 +374,8 @@ def set_driller_simprocedures(project):
 def main(argc, argv):
     global binary_start_code, binary_end_code
     global outputdir, inputdir, binary
+    global fuzz_bitmap, map_size
+    global sync_id, fuzzer_driller_dir
     global trace_cnt, total_traces
     global project
     global basedirectory
@@ -314,7 +385,9 @@ def main(argc, argv):
     parser.add_argument('-i', dest='inputdir', type=str, metavar="<input_dir>", help='input directoy', required=True)
     parser.add_argument('-o', dest='outputdir', type=str, metavar="<output_dir>", help='output directoy', required=True)
     parser.add_argument('-b', dest='binary', type=str, metavar="<binary>", help='binary', required=True)
-    parser.add_argument('-j', default=multiprocessing.cpu_count(), dest='thread_cnt', type=int, metavar="<i>", help='number of tracer threads')
+    parser.add_argument('-f', dest='fuzz_bitmap', type=str, metavar="<fuzz_bitmap>", help='AFL\'s fuzz_bitmap', required=True)
+    parser.add_argument('-j', default=1, dest='thread_cnt', type=int, metavar="<i>", help='number of tracer threads')
+    parser.add_argument('-s', dest='sync_id', type=str, metavar="<sync_id>", help='sync id of the fuzzer invoking us', required=True)
 
     args = parser.parse_args()
 
@@ -322,13 +395,14 @@ def main(argc, argv):
     inputdir = args.inputdir
     outputdir = args.outputdir
     thread_cnt = args.thread_cnt
-
+    fuzz_bitmap_file = args.fuzz_bitmap
+    sync_id = args.sync_id
 
     if thread_cnt > multiprocessing.cpu_count():
         die("I wouldn't recommend starting more driller processes than you have CPUs")
 
-
     ok("drilling into \"%s\" with inputs in \"%s\"" % (binary, inputdir)) 
+    ok("using %d processes to get the job done" % thread_cnt)
     alert("started at %s" % time.ctime())
     if os.path.isdir(inputdir):
         inputs = os.listdir(inputdir)
@@ -356,7 +430,21 @@ def main(argc, argv):
                 if f != ".traced":
                     os.remove(fpath)
 
+    fuzzer_driller_dir = "%s/../../%s_driller/queue/" % (outputdir, sync_id)
+    try:
+        os.makedirs(fuzzer_driller_dir)
+    except OSError:
+        if not os.path.isdir(fuzzer_driller_dir):
+            die("cannot make fuzzer's personal driller directory \"%s\"" % fuzzer_driller_dir)
+
     create_and_populate_traced(outputdir)
+
+    # open up the bitmap
+    try:
+        fuzz_bitmap = open(fuzz_bitmap_file).read()
+        map_size = len(fuzz_bitmap)
+    except IOError:
+        die("fuzz_bitmap \"%s\" not found" % fuzz_bitmap_file)
 
     project = angr.Project(binary)
 
