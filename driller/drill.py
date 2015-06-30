@@ -28,7 +28,9 @@ map_size = None
 sync_id = None
 fuzzer_driller_dir = None
 
-shared_trace_cnt = multiprocessing.Value('L', 0, lock=multiprocessing.Lock())
+#shared_trace_cnt = multiprocessing.Value('L', 0, lock=multiprocessing.Lock())
+shared_trace_cnt = multiprocessing.Value('L', 0, lock=True)
+#shared_generated = multiprocessing.Array('(L, (L, L))', )
 total_traces = 0
 
 def ok(s):
@@ -94,7 +96,7 @@ def dump_to_file(prev, path):
     os.close(fd) # close the fd, mkstemp returns an open one annoyingly
 
     fp = open(outfile, "w")
-    fp.write(out)
+    fp.write(gen)
     fp.close()
 
     # TODO: fix this race condition
@@ -109,7 +111,7 @@ def dump_to_file(prev, path):
     basename = os.path.basename(outfile)
     # also write the file to the the special output directory
     fp = open("%s/id:%06u,orig:%s" % (fuzzer_driller_dir, cnt, basename), "w")
-    fp.write(out)
+    fp.write(gen)
     fp.close
 
     dstats = open("%s/.driller_stats" % fuzzer_driller_dir, "w")
@@ -266,7 +268,9 @@ def constraint_trace(fn):
                 # sometimes angr explores one block too many. ie after a _terminate syscall angr
                 # may step into the basic block after the call, this case catches that
                 print_trace_stats(total_length, fn, found_one)
+                shared_trace_cnt.acquire()
                 shared_trace_cnt.value += 1
+                shared_trace_cnt.release()
                 return
 
             if current.addr == bb_trace[bb_cnt]: # the trace and angr agrees, just increment cnt
@@ -342,7 +346,9 @@ def constraint_trace(fn):
         trace_group.drop(stash='missed')
         
     print_trace_stats(total_length, fn, found_one)
+    shared_trace_cnt.acquire()
     shared_trace_cnt.value += 1
+    shared_trace_cnt.release()
 
     if len(trace_group.errored) > 0:
         warning("some paths errored! this is most likely bad and could be a symptom of a bug!")
