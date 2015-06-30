@@ -66,10 +66,8 @@ traced = set()
 # solved state transition
 generated = set()
 
-def dump_to_file(indicies, content, prev, path):
+def dump_to_file(prev, path):
     '''
-    :param indices: a list of integers which contain new data which trigger the state transition
-    :param content: the content of the input file which missed the state transition
     :param prev: an integer address of the basic block before path
     :param path: a path object which is the destination of the new state transition
     :return: the name of the output file generated as a string
@@ -84,10 +82,6 @@ def dump_to_file(indicies, content, prev, path):
 
 
     out = gen
-    '''
-    for index in indicies:
-        out = out[:index] + gen[index] + out[index+1:]
-    '''
 
     if out in generated:
         return ""
@@ -320,15 +314,9 @@ def constraint_trace(fn):
 
             if not hit:
                 if path.state.satisfiable():
-                    # we're only concerned about stdin
-                    indices = [ ] 
-                    for i in path.guards[-1].variables:
-                        if i.startswith('file_/dev/stdin_0_'):
-                            indices.append(int(i.split('file_/dev/stdin_0_')[1].split('_')[0], 16))
-                    if len(indices) > 0:
-                        outf = dump_to_file(indices, content, prev_bb, path)
-                        if outf != "":
-                            found_one = 2
+                    outf = dump_to_file(prev_bb, path)
+                    if outf != "":
+                        found_one = 2
                 else:
                     if found_one != 2:
                         found_one = 1
