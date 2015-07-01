@@ -46,7 +46,11 @@ def alert(s):
 
 def warning(s):
     status = termcolor.colored("[-]", "red", attrs=["bold"])
-    print "%s %s" % (status, s)
+    sys.stderr.write("%s %s\n" % (status, s))
+
+def afl_alert(s):
+    status = termcolor.colored("[*]", "blue", attrs=["bold"])
+    sys.stderr.write("%s %s\n" % (status, s))
 
 def die(s):
     warning(s)
@@ -474,6 +478,8 @@ def main(argc, argv):
     thread_cnt = args.thread_cnt
     fuzz_bitmap_file = args.fuzz_bitmap
     sync_id = args.sync_id
+
+    afl_alert("driller being invoked by %s" % sync_id)
 
     if thread_cnt > multiprocessing.cpu_count():
         die("I wouldn't recommend starting more driller processes than you have CPUs")
