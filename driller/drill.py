@@ -179,6 +179,7 @@ def dump_to_file(prev, path):
         dstats.close()
         driller_stats_lock.release()
     except IOError:
+        driller_stats_lock.release()
         pass
 
     basename = os.path.basename(outfile)
