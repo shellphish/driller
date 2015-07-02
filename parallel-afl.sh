@@ -124,9 +124,27 @@ else
     log_info "spinning up $AFL_THREADS AFL slaves who can each invoke $DRILLER_THREADS driller procs"
 fi
 
-for i in $(seq 1 $AFL_THREADS); do
+# now choose the mindless AFL slaves and the AFL slaves capable of invoking driller
+AFL_SLAVES=$(($AFL_THREADS / 2))
+DRILLER_SLAVES=$(($AFL_THREADS - $AFL_SLAVES))
+
+log_info "$DRILLER_SLAVES slaves will be able to invoke driller"
+
+for i in $(seq 1 $DRILLER_SLAVES); do
     LOG_FILE="$SYNC_ID-$i.log"
     $AFL_BIN -m 8G -Q -D "$DRILLER_PATH" -i $INPUT_DIR -o $SYNC_DIR -j $DRILLER_THREADS -S "$SYNC_ID-$i" -- $BINARY > $LOG_FILE &
+
+    if [[ $? != 0 ]]; then
+        die "unable to invoke AFL slave #$i check $LOG_FILE for likely problems"
+    fi
+    log_success "\t$SYNC_ID-$i, PID: $!, logfile: $LOG_FILE"
+done
+
+AFL_SLAVE_START=$(($DRILLER_SLAVES + 1))
+AFL_SLAVE_END=$(($DRILLER_SLAVES + $AFL_SLAVES))
+for i in $(seq $AFL_SLAVE_START $AFL_SLAVE_END); do
+    LOG_FILE="$SYNC_ID-$i.log"
+    $AFL_BIN -m 8G -Q -i $INPUT_DIR -o $SYNC_DIR -j $DRILLER_THREADS -S "$SYNC_ID-$i" -- $BINARY > $LOG_FILE &
 
     if [[ $? != 0 ]]; then
         die "unable to invoke AFL slave #$i check $LOG_FILE for likely problems"
