@@ -512,9 +512,13 @@ def main(argc, argv):
 
     # create the catalogue file
     catalogue_file = "%s/../../%s_driller/driller_catalogue" % (outputdir, sync_id)
-    cfp = open(catalogue_file, "w")
-    cfp.write("")
-    cfp.close()
+    try:
+        cfp = open(catalogue_file)
+        cfp.close()
+    except IOError: # catalogue file doesn't exist. create it
+        cfp = open(catalogue_file, "w")
+        cfp.write("")
+        cfp.close()
 
     # open up the bitmap
     try:
