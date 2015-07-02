@@ -178,7 +178,7 @@ def dump_to_file(prev, path):
     # also write the file to the the special output directory
     fp = open("%s/id:%06u,orig:%s" % (fuzzer_driller_dir, cnt, basename), "w")
     fp.write(gen)
-    fp.close
+    fp.close()
 
     driller_stats_lock.acquire()
     dstats = open("%s/.driller_stats" % fuzzer_driller_dir, "w")
