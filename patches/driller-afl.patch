@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-06-29 00:19:03.568875847 -0700
++++ afl-fuzz.c	2015-06-30 18:50:20.619856144 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -362,16 +362,22 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7703,14 @@
+@@ -7557,6 +7703,20 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
 +    /* when AFL goes blue we invoke driller */
 +    if (cycles_wo_finds > 0 && unique_crashes == 0 && !force_deterministic && driller_path)
 +    {
-+        invoke_driller(use_argv);
-+        cycles_wo_finds = 0;
-+        printf("\e[1;1H\e[2J"); // clear screen
++        sync_fuzzers(use_argv); /* try to sync fuzzers first */
++
++        /* still didn't find anything interesting after a sync, invoke driller */
++        if (cycles_wo_finds > 0)
++        {
++            invoke_driller(use_argv);
++            cycles_wo_finds = 0;
++            printf("\e[1;1H\e[2J"); // clear screen
++        }
 +    } 
 +
      if (!stop_soon && sync_id && !skipped_fuzz) {
