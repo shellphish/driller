@@ -363,8 +363,8 @@ def constraint_trace(fn):
                         bb_cnt += 1
                     bb_cnt += 1
                 except:
-                    warning("errored in trace following")
-                    embed()
+                    warning("errored in trace following input %s" % fn)
+                    return
 
             # adjust prev_loc
 
