@@ -359,11 +359,12 @@ def constraint_trace(fn):
                 # angr and the actual occurance of the path is later on, so we wind up
                 # the trace until we hit the current address
                 try:
+                    saved = bb_trace[bb_cnt]
                     while bb_trace[bb_cnt] != current.addr:
                         bb_cnt += 1
                     bb_cnt += 1
                 except:
-                    warning("errored in trace following input %s" % fn)
+                    warning("errored in trace following input %s (%x, %x)" % (fn, current.addr, saved))
                     return
 
             # adjust prev_loc
@@ -426,7 +427,7 @@ def constraint_trace(fn):
     if len(trace_group.errored) > 0:
         warning("some paths errored! this is most likely bad and could be a symptom of a bug!")
         for errored in trace_group.errored:
-            warning(errored.error)
+            warning("[%x] %s" % (errored.addr, errored.error))
 
     return
 
