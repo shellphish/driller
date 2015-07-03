@@ -109,10 +109,12 @@ CREATE_DICT_PATH="$DRILLER_DIR/driller/create_dict.py"
 log_info "creating dictionary of string references from the binary to improve performance"
 
 DICTIONARY="$BINARY-driller.dict"
+DICTIONARY_OPT="-x $DICTIONARY"
 $CREATE_DICT_PATH $BINARY $DICTIONARY
 
 if [[ $? == 1 ]]; then
     log_error "unable to gather string references and create dictionary, continuing anyways"
+    DICTIONARY_OPT=""
 fi
 
 export AFL_PATH="$DRILLER_DIR/afl-1.83b"
@@ -121,7 +123,7 @@ MASTER_LOG="$SYNC_ID-master.log"
 
 log_info "spinning up AFL master, logging output into $MASTER_LOG"
 # spin up the master thread
-$AFL_BIN -m 8G -Q -x $DICTIONARY -i $INPUT_DIR -o $SYNC_DIR -M "$SYNC_ID-master" -- $BINARY > $MASTER_LOG &
+$AFL_BIN -m 8G -Q $DICTIONARY_OPT -i $INPUT_DIR -o $SYNC_DIR -M "$SYNC_ID-master" -- $BINARY > $MASTER_LOG &
 if [[ $? != 0 ]]; then
     die "unable to invoke master AFL instance, check $MASTER_LOG for likely problems"
 fi
@@ -146,7 +148,7 @@ log_info "$DRILLER_SLAVES slaves will be able to invoke driller"
 
 for i in $(seq 1 $DRILLER_SLAVES); do
     LOG_FILE="$SYNC_ID-$i.log"
-    $AFL_BIN -m 8G -Q -D "$DRILLER_PATH" -x $DICTIONARY -i $INPUT_DIR -o $SYNC_DIR -j $DRILLER_THREADS -S "$SYNC_ID-$i" -- $BINARY > $LOG_FILE &
+    $AFL_BIN -m 8G -Q -D "$DRILLER_PATH" $DICTIONARY_OPT -i $INPUT_DIR -o $SYNC_DIR -j $DRILLER_THREADS -S "$SYNC_ID-$i" -- $BINARY > $LOG_FILE &
 
     if [[ $? != 0 ]]; then
         die "unable to invoke AFL slave #$i check $LOG_FILE for likely problems"
@@ -158,7 +160,7 @@ AFL_SLAVE_START=$(($DRILLER_SLAVES + 1))
 AFL_SLAVE_END=$(($DRILLER_SLAVES + $AFL_SLAVES))
 for i in $(seq $AFL_SLAVE_START $AFL_SLAVE_END); do
     LOG_FILE="$SYNC_ID-$i.log"
-    $AFL_BIN -m 8G -Q -x $DICTIONARY -i $INPUT_DIR -o $SYNC_DIR -j $DRILLER_THREADS -S "$SYNC_ID-$i" -- $BINARY > $LOG_FILE &
+    $AFL_BIN -m 8G -Q $DICTIONARY_OPT -i $INPUT_DIR -o $SYNC_DIR -j $DRILLER_THREADS -S "$SYNC_ID-$i" -- $BINARY > $LOG_FILE &
 
     if [[ $? != 0 ]]; then
         die "unable to invoke AFL slave #$i check $LOG_FILE for likely problems"
