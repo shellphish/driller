@@ -71,6 +71,10 @@ function terminate() {
     echo
     echo -e "\e[1;31m+++ Testing aborted by user +++\e[0m" 
     echo
+
+    CHILDREN=$(pstree -p $$ | grep -o '([0-9]\+)' | grep -o '[0-9]\+' | grep -v $$)
+    kill $CHILDREN 2>/dev/null
+
     log_info "all fuzzers should be dead, here's afl-whatsup status to confirm"
     show_stats $1 $2 $3
     exit 1
