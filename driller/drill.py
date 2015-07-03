@@ -57,7 +57,7 @@ def die(s):
     sys.exit(1)
 
 
-encountered = {}
+encountered = set()
 found = {}
 qemu_traces = {}
 
@@ -254,13 +254,17 @@ def accumulate_traces(basedirectory, binary_path, loader, inputs):
     arch = detect_arch(loader)  
 
     for inputfile in inputs:
-        traces = generate_qemu_trace(basedirectory, binary_path, arch, inputfile) 
-        qemu_traces[inputfile] = traces
+        addrs = generate_qemu_trace(basedirectory, binary_path, arch, inputfile) 
+        qemu_traces[inputfile] = addrs
 
         # let's just populate encountered now
-        for trace in traces:
-            if trace not in encountered:
-                encountered[trace] = inputfile
+        for i, addr in enumerate(addrs):
+            if (i + 1) < len(addrs):
+                transition = (addr, addrs[i+1])
+            else:
+                break
+            if transition not in encountered:
+                encountered.add(transition)
 
 
 def create_and_populate_traced(outputdir):
@@ -387,7 +391,8 @@ def constraint_trace(fn):
 
             hit = bool(ord(fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
 
-            if not hit:
+            # TODO: get this to work with the bitmap and not an additional python Set
+            if not hit and (prev_bb, path.addr) not in encountered:
                 if path.state.satisfiable():
                     outf = dump_to_file(prev_bb, path)
                     if outf != "":
