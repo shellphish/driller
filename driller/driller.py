@@ -21,13 +21,13 @@ class Driller(object):
 
     TRACED_CATALOGUE = ".traced"
 
-    def __init__(self, binary, in_dir, out_dir, fuzz_bitmap, qemu_dir, proc_cnt=1,
+    def __init__(self, binary, in_dir, out_dir, fuzz_bitmap_file, qemu_dir, proc_cnt=1,
                  parallel=False, sync_dir=None):
         '''
         :param binary: the binary to be traced
         :param in_dir: directory of inputs to feed to the binary
         :param out_dir: directory to place drilled outputs
-        :param fuzz_bitmap: AFL's bitmap of state transitions as a file
+        :param fuzz_bitmap_file: AFL's bitmap of state transitions as a file
         :param proc_cnt: number of driller workers to invoke during tracing
         :param parallel: boolean describing whether driller is being invoked by a parallel AFL run
         :param sync_dir: the sync directory to use for driller_outputs
@@ -37,7 +37,7 @@ class Driller(object):
         self.binary           = binary
         self.in_dir           = in_dir
         self.out_dir          = out_dir
-        self.fuzz_bitmap      = fuzz_bitmap
+        self.fuzz_bitmap_file = fuzz_bitmap_file
         self.qemu_dir         = qemu_dir
         self.proc_cnt         = proc_cnt
         self.parallel         = parallel
@@ -82,7 +82,7 @@ class Driller(object):
             ret = False
 
         # does the fuzzer's bitmap exist and is it a file?
-        if not os.path.isfile(self.fuzz_bitmap):
+        if not os.path.isfile(self.fuzz_bitmap_file):
             l.error("fuzzer bitmap provided does not exist or is not a file")
             ret = False
 
@@ -139,6 +139,12 @@ class Driller(object):
         self.inputs = [i for i in os.listdir(self.in_dir) if not i.startswith(".")]
 
         l.debug(self.inputs)
+
+        # open the fuzz_bitmap and populate an instance variable with it and it's length
+        self.fuzz_bitmap = open(self.fuzz_bitmap_file).read()
+        self.fuzz_bitmap_size = len(self.fuzz_bitmap)
+
+        l.debug("fuzz_bitmap of size %d bytes loaded" % self.fuzz_bitmap_size)
 
         # if driller has been invoked by a parallel AFL run, there's more work to do
         if self.parallel:
