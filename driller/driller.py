@@ -1,13 +1,18 @@
 import angr
+import archinfo
+import tempfile
 import os
 import multiprocessing
 import time
+import subprocess
 
 import logging
 
 l = logging.getLogger("driller")
 l.setLevel("DEBUG")
-logging.basicConfig()
+
+class DrillerEnvironmentError(Exception):
+    pass
 
 class Driller(object):
     '''
@@ -16,7 +21,7 @@ class Driller(object):
 
     TRACED_CATALOGUE = ".traced"
 
-    def __init__(self, binary, in_dir, out_dir, fuzz_bitmap, proc_cnt=1, 
+    def __init__(self, binary, in_dir, out_dir, fuzz_bitmap, qemu_dir, proc_cnt=1,
                  parallel=False, sync_dir=None):
         '''
         :param binary: the binary to be traced
@@ -26,18 +31,27 @@ class Driller(object):
         :param proc_cnt: number of driller workers to invoke during tracing
         :param parallel: boolean describing whether driller is being invoked by a parallel AFL run
         :param sync_dir: the sync directory to use for driller_outputs
+        :param qemu_path: path to driller qemu binaries
         '''
 
         self.binary           = binary
         self.in_dir           = in_dir
         self.out_dir          = out_dir
         self.fuzz_bitmap      = fuzz_bitmap
+        self.qemu_dir         = qemu_dir
         self.proc_cnt         = proc_cnt
         self.parallel         = parallel
         self.sync_dir         = sync_dir
 
+        # list of input files
         self.inputs           = [ ]
+
+        # dictionary of input files and basic block traces
+        self.traces           = { }
         
+        # set of encountered basic block transition
+        self.encountered      = set()
+
         # setup directories for the driller and perform sanity checks on the directory structure here
         if not self._sane():
             l.error("environment or parameters are unfit for a driller run")
@@ -47,6 +61,14 @@ class Driller(object):
         if not self._setup():
             l.error("unable to setup environment for driller")
             return
+
+        self.project          = angr.Project(self.binary)
+
+        self._accumulate_traces()
+
+        l.debug("%d traces" % len(self.traces))
+        l.debug("%d state transitions" % len(self.encountered))
+
          
     def _sane(self):
         ''' 
@@ -76,6 +98,11 @@ class Driller(object):
         # check permissions on the binary to ensure it's executable
         if not os.access(self.binary, os.X_OK):
             l.error("passed binary file is not executable")
+            ret = False
+
+        # check if the qemu dir is set up correctly
+        if not os.path.isdir(self.qemu_dir):
+            l.error("the QEMU directory \"%s\" either does not exist or is not a directory" % self.qemu_dir)
             ret = False
 
         # if parallel is turned on we need to check more stuff
@@ -168,3 +195,73 @@ class Driller(object):
                 f.write("count:%d\n" % int(driller_cnt))
                 f.write("start:%d\n" % time.time())
 
+        return True
+
+
+    def _accumulate_traces(self):
+        l.info("accumulating %d traces with QEMU" % len(self.inputs))
+
+        qemu_bin = "driller-qemu-%s" % self._arch_string()
+        qemu_path = os.path.join(self.qemu_dir, qemu_bin)
+
+        # quickly validate that the qemu binary exists
+        if not os.access(qemu_path, os.X_OK):
+            l.error("QEMU binary for target's arch either does not exist or is not executable")
+            raise DrillerEnvironmentError
+
+        for input_file in self.inputs:
+            # generate a logfile for the trace, will be thrown away shortly
+            fd, logfile = tempfile.mkstemp(prefix="driller-trace-", dir="/dev/shm/")
+
+            # args to Popen
+            args = [qemu_path, "-d", "exec", "-D", logfile, self.binary]
+
+            ifp = open(os.path.join(self.in_dir, input_file))
+            ofp = open("/dev/null", "w")
+
+            l.debug(args)
+
+            # run QEMU with the input file as stdin
+            p = subprocess.Popen(args, stdin=ifp, stdout=ofp)
+            p.wait()
+
+            ifp.close()
+            ofp.close()
+
+            trace = open(logfile).read()
+            os.remove(logfile)
+
+            tracelines = trace.split("\n")
+            tracelines = filter(lambda v: v.startswith("Trace"), tracelines)
+            addrs = map(lambda v: int(v.split("[")[1].split("]")[0], 16), tracelines)
+
+            # make an association with the basic blocks traversed and the input file which does it
+            self.traces[input_file] = addrs
+
+            # now look through traces for unique state transitions
+            for i, addr in enumerate(addrs):
+                if (i + 1) < len(addrs):
+                    transition = (addr, addrs[i+1])
+                    self.encountered.add(transition)
+                else:
+                    break
+
+    def _arch_string(self):
+
+        ld_arch = self.project.ld.main_bin.arch
+        ld_type = self.project.ld.main_bin.filetype
+
+        # what's the binary's format?
+        if ld_type == "cgc":
+            arch = "cgc"
+
+        elif ld_type == "elf":
+            if ld_arch == archinfo.arch_amd64.ArchAMD64:
+                arch = "x86_64"
+            if ld_arch == archinfo.arch_x86.ArchX86:
+                arch = "i386"
+        else:
+            l.error("binary is of an unsupported architecture")
+            raise NotImplementedError
+
+        return arch
