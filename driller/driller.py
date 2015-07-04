@@ -39,16 +39,16 @@ class Driller(object):
         self.inputs           = [ ]
         
         # setup directories for the driller and perform sanity checks on the directory structure here
-        if not self.sane():
+        if not self._sane():
             l.error("environment or parameters are unfit for a driller run")
             return
 
         # setup the output directory and special files for tracking
-        if not self.setup():
+        if not self._setup():
             l.error("unable to setup environment for driller")
             return
          
-    def sane(self):
+    def _sane(self):
         ''' 
         make sure the environment will allow us to run without any hitches
         '''
@@ -88,7 +88,7 @@ class Driller(object):
 
         return ret
 
-    def setup(self):
+    def _setup(self):
         '''
         prepare driller for running
         '''
@@ -167,5 +167,4 @@ class Driller(object):
             with open(self.driller_stats_file, "w") as f:
                 f.write("count:%d\n" % int(driller_cnt))
                 f.write("start:%d\n" % time.time())
-
 
