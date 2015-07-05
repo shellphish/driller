@@ -1,5 +1,7 @@
 import angr
+import simuvex
 import archinfo
+
 import tempfile
 import os
 import multiprocessing
@@ -12,6 +14,9 @@ l = logging.getLogger("driller")
 l.setLevel("DEBUG")
 
 class DrillerEnvironmentError(Exception):
+    pass
+
+class DrillerMisfollowError(Exception):
     pass
 
 class Driller(object):
@@ -62,13 +67,13 @@ class Driller(object):
             l.error("unable to setup environment for driller")
             return
 
-        self.project          = angr.Project(self.binary)
-
         self._accumulate_traces()
 
         l.debug("%d traces" % len(self.traces))
         l.debug("%d state transitions" % len(self.encountered))
 
+
+### ENVIRONMENT CHECKS AND OBJECT SETUP
          
     def _sane(self):
         ''' 
@@ -137,8 +142,6 @@ class Driller(object):
          
         # populate the list of input files
         self.inputs = [i for i in os.listdir(self.in_dir) if not i.startswith(".")]
-
-        l.debug(self.inputs)
 
         # open the fuzz_bitmap and populate an instance variable with it and it's length
         self.fuzz_bitmap = open(self.fuzz_bitmap_file).read()
@@ -225,8 +228,6 @@ class Driller(object):
             ifp = open(os.path.join(self.in_dir, input_file))
             ofp = open("/dev/null", "w")
 
-            l.debug(args)
-
             # run QEMU with the input file as stdin
             p = subprocess.Popen(args, stdin=ifp, stdout=ofp)
             p.wait()
@@ -254,8 +255,10 @@ class Driller(object):
 
     def _arch_string(self):
 
-        ld_arch = self.project.ld.main_bin.arch
-        ld_type = self.project.ld.main_bin.filetype
+        # temporary angr project for getting loader options
+        p = angr.Project(self.binary)
+        ld_arch = p.ld.main_bin.arch
+        ld_type = p.ld.main_bin.filetype
 
         # what's the binary's format?
         if ld_type == "cgc":
@@ -271,3 +274,117 @@ class Driller(object):
             raise NotImplementedError
 
         return arch
+
+### DRILLING
+
+    def drill(self):
+        '''
+        perform the drilling, finding more code coverage based off our existing input base.
+        '''
+
+        # if it's just a single process we don't mess with the multiprocessing module
+        if self.proc_cnt == 1:
+            for input_file in self.inputs:
+                self._drill_input(input_file)
+
+        else:
+            l.info("spinning up %d processes to get the job done" % self.proc_cnt)
+            p = multiprocessing.Pool(self.proc_cnt)
+            p.map(self._drill_input, self.inputs)
+
+    def _drill_input(self, input_file):
+        '''
+        symbolically step down a path, choosing branches based off a dynamic trace we took earlier.
+        if there's any branches (or state transitions really) which weren't taken by any of the inputs
+        we concretize an input to reach those branches (or state transitions really).
+
+        :param input_file: input file which produces the path to drill to into
+        '''
+
+        # grab the dynamic basic block trace
+        bb_trace = self.traces[input_file]
+
+        l.info("drilling into \"%s\"" % input_file)
+        l.info("input \"%s\" has a basic block trace of %d addresses" % (input_file, len(bb_trace)))
+
+        project = angr.Project(self.binary)
+        parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+
+        # TODO: detect unconstrained paths
+        trace_group = project.path_group(immutable=False, paths=[parent_path])
+
+        # used for following the dynamic trace
+        bb_cnt = 0
+
+        # used for finding the right index in the fuzz_bitmap
+        prev_loc = 0
+
+        # initialize the missed stash in the trace_group path group
+        trace_group.missed = [ ]
+
+        while len(trace_group.active) > 0:
+
+            bb_cnt, next_move = self._windup_to_branch(trace_group, bb_trace, bb_cnt)
+
+            # move the transition which the dynamic trace didn't encounter to the 'missed' stash
+            trace_group.stash_not_addr(next_move, to_stash='missed')
+
+            # make sure we actually have one active path at this point
+            # in the case which we have no paths but a next_move, that's trouble
+            if next_move is not None and len(trace_group.active) < 1:
+                l.error("taking the branch at 0x%x is unsatisfiable to angr" % next_move)
+                raise DrillerMisfollowError
+
+            # mimic AFL's indexing scheme
+            if len(trace_group.stashes['missed']) > 0:
+                prev_loc = bb_trace[bb_cnt]
+                prev_loc = (prev_loc >> 4) ^ (prev_loc << 8)
+                prev_loc &= self.fuzz_bitmap_size - 1
+                prev_loc = prev_loc >> 1
+                for path in trace_group.stashes['missed']:
+                    cur_loc = path.addr
+                    cur_loc = (cur_loc >> 4) ^ (cur_loc << 8)
+                    cur_loc &= self.fuzz_bitmap_size - 1
+
+                    hit = bool(ord(self.fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
+
+                    transition = (bb_trace[bb_cnt], path.addr)
+                    if not hit and transition not in self.encountered:
+                        if path.state.satisfiable:
+                            l.info("dumping input for %x -> %x" % transition)
+                            #self._writeout(path)
+
+            trace_group.drop(stash='missed')
+            
+            bb_cnt += 1
+
+    def _windup_to_branch(self, path_group, bb_trace, bb_idx):
+        '''
+        step through a path_group until multiple branches can be taken, we return the our new position 
+        in the basic block trace and the branch which the dynamic trace took.
+
+        :param path_group: a mutable angr path_group 
+        :param bb_trace: a list of basic block address taken by the dynamic trace
+        :param bb_idx: the current index into the bb_trace
+        :return: a tuple of the new basic block index and the next move taken by the dynamic trace
+        '''
+
+        previous = bb_trace[bb_idx]
+        while len(path_group.active) == 1:
+            current = path_group.active[0]
+
+            # we don't need these, free them to save memory
+            current.trim_history()
+            current.state.downsize()
+
+            previous = current.addr
+            path_group.step()
+
+        # this occurs when a path deadends, no need to keep tracing it
+        if len(path_group.active) == 0 and len(path_group.deadended) > 0:
+            return (0, None)
+
+        while bb_trace[bb_idx] != previous:
+            bb_idx += 1
+
+        return (bb_idx, bb_trace[bb_idx+1])
