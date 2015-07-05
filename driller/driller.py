@@ -24,19 +24,18 @@ class Driller(object):
     Driller object, can invoke many processes to trace inputs and drill into new state transitions.
     '''
 
-    TRACED_CATALOGUE = ".traced"
+    TRACED_FILE    = "traced"
+    CATALOGUE_FILE = "driller_catalogue"
+    STATS_FILE     = "driller_stats"
 
-    def __init__(self, binary, in_dir, out_dir, fuzz_bitmap_file, qemu_dir, proc_cnt=1,
-                 parallel=False, sync_dir=None):
+    def __init__(self, binary, in_dir, out_dir, fuzz_bitmap_file, qemu_dir, proc_cnt=1):
         '''
         :param binary: the binary to be traced
         :param in_dir: directory of inputs to feed to the binary
         :param out_dir: directory to place drilled outputs
         :param fuzz_bitmap_file: AFL's bitmap of state transitions as a file
+        :param qemu_dir: path to driller qemu binaries
         :param proc_cnt: number of driller workers to invoke during tracing
-        :param parallel: boolean describing whether driller is being invoked by a parallel AFL run
-        :param sync_dir: the sync directory to use for driller_outputs
-        :param qemu_path: path to driller qemu binaries
         '''
 
         self.binary           = binary
@@ -46,7 +45,28 @@ class Driller(object):
         self.qemu_dir         = qemu_dir
         self.proc_cnt         = proc_cnt
         self.parallel         = parallel
-        self.sync_dir         = sync_dir
+
+        # the output directoy is organized into a dock, a queue, and stat files
+
+        # the dock is used for all the outputs created during a single driller invokation
+        # we use a directory to make it easy to transfer new inputs to AFL
+        self.dock_dir         = os.path.join(self.out_dir, "dock")
+
+        # the queue contains every input create over multiple driller invokations, named 'queue'
+        # to make integration with AFL easy
+        self.queue_dir        = os.path.join(self.out_dir, "queue")
+
+        # traced catalogue file to prevent tracing inputs which have already been traced
+        # organized as a list of filenames which have been traced seperated by line
+        self.traced_file      = os.path.join(self.out_dir, self.TRACED_FILE)
+
+        # drilled catalogue file to prevent producing redundant inputs
+        # organized as a list of length,start_addr,end_addr tuples seperated by line
+        self.catalogue_file   = os.path.join(self.out_dir, self.CATALOGUE_FILE)
+
+        # stat file containing book keeping information
+        # colon delimited key value pairs seperated by line
+        self.stats_file       = os.path.join(self.out_dir, self.STATS_FILE)
 
         # list of input files
         self.inputs           = [ ]
@@ -110,14 +130,6 @@ class Driller(object):
             l.error("the QEMU directory \"%s\" either does not exist or is not a directory" % self.qemu_dir)
             ret = False
 
-        # if parallel is turned on we need to check more stuff
-        if self.parallel:
-             
-            # was the sync_dir specified and does it exist?
-            if self.sync_dir is None:
-                l.error("with parallel mode turned on, you must specify a sync directory")
-                ret = False
-
         return ret
 
     def _setup(self):
@@ -125,20 +137,28 @@ class Driller(object):
         prepare driller for running
         '''
     
-        # make the output directory, or clean it 
+        # make the dock directory, or clean it
         try:
-            os.makedirs(self.out_dir)
+            os.makedirs(self.dock_dir)
         except OSError:
-            if not os.path.isdir(self.out_dir):
-                l.error("cannot make output directory \"%s\"" % self.out_dir)
+            if not os.path.isdir(self.dock_dir):
+                l.error("cannot make dock directory \"%s\"" % self.dock_dir)
                 return False
             else:
-                l.info("output directory \"%s\" already exists, removing contents" % self.out_dir)
-                for f in os.listdir(self.out_dir):
+                # if the dock directory exists we clean the contents of it dock
+                # preventing AFL from picking up inputs which it tested in a previous run
+                l.info("dock directory \"%s\" already exists, removing contents" % self.dock_dir)
+                for f in os.listdir(self.dock_dir):
                     fpath = os.path.join(self.out_dir, f)
-                    if f != self.TRACED_CATALOGUE:
-                        os.remove(fpath)
+                    os.remove(fpath)
 
+        # make the queue directory if it doesn't already exist
+        try:
+            os.makedirs(self.queue_dir)
+        except OSError:
+            if not os.path.isdir(self.queue_dir):
+                l.error("cannot make queue directory \"%s\"" % self.queue_dir)
+                return False
          
         # populate the list of input files
         self.inputs = [i for i in os.listdir(self.in_dir) if not i.startswith(".")]
@@ -149,60 +169,26 @@ class Driller(object):
 
         l.debug("fuzz_bitmap of size %d bytes loaded" % self.fuzz_bitmap_size)
 
-        # if driller has been invoked by a parallel AFL run, there's more work to do
-        if self.parallel:
+        # create the stat file
+        driller_cnt = 0
+        try:
+            stat_blob = open(self.stats_file).read()
 
-            # first we prepare the driller sync directory so other AFL instances can sync with 
-            # driller outputs as they are produced
-            try:
-                os.makedirs(self.sync_dir)
-            except OSError:
-                if not os.path.isdir(self.sync_dir):
-                    l.error("cannot make driller sync directory \"%s\"" % self.sync_dir)
-                    return False
+            # need to make sure we keep the count the same
+            for line in stat_blob.split("\n"):
+                line = line.strip()
+                key, value = line.split(":") 
+                if key == "count":
+                    driller_cnt = value
+                    break
 
-            # we introduce three new variables for keeping track of the sync directory
-            # a driller_stats_file, a driller_catalogue_file, and a driller_sync_queue
+        except IOError:
+            pass
 
-            # the driller stats file contains how many new inputs we've created and when we last 
-            # started up
-            self.driller_stats_file = os.path.join(self.sync_dir, "driller_stats")
-
-            # the driller catalogue file contains a list of unique state transitions we've generated
-            # inputs for 
-            self.driller_catalogue_file = os.path.join(self.sync_dir, "driller_catalogue")
-
-            # the driller sync queue is where are new inputs are placed, it must be a named correctly
-            # for AFL instances to find it
-            self.driller_sync_queue = os.path.join(self.sync_dir, "queue")
-
-            # create the sync queue if it doesn't exist
-            try:
-                os.makedirs(self.driller_sync_queue)
-            except OSError:
-                if not os.path.isdir(self.driller_sync_queue):
-                    l.error("cannot make driller sync queue \"%s\"" % self.driller_sync_queue)
-            
-            # create the stat file
-            driller_cnt = 0
-            try:
-                stat_blob = open(self.driller_stats_file).read()
-
-                # need to make sure we keep the count the same
-                for line in stat_blob.split("\n"):
-                    line = line.strip()
-                    key, value = line.split(":") 
-                    if key == "count":
-                        driller_cnt = value
-                        break
-
-            except IOError:
-                pass
-
-            # now create a new, updated driller_stats_file
-            with open(self.driller_stats_file, "w") as f:
-                f.write("count:%d\n" % int(driller_cnt))
-                f.write("start:%d\n" % time.time())
+        # now create a new, updated driller_stats_file
+        with open(self.stats_file, "w") as f:
+            f.write("count:%d\n" % int(driller_cnt))
+            f.write("start:%d\n" % time.time())
 
         return True
 
@@ -401,7 +387,7 @@ class Driller(object):
         # seriously slow down AFL
 
         file_prefix = "driller-%d-%x-%x-" % (len(generated), prev_addr, path.addr)
-        fd, outfile = tempfile.mkstemp(prefix=file_prefix, dir=self.out_dir)
+        fd, outfile = tempfile.mkstemp(prefix=file_prefix, dir=self.queue_dir)
         os.close(fd)
 
         with open(outfile, "w") as ofp:
