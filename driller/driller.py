@@ -350,9 +350,11 @@ class Driller(object):
 
                     transition = (bb_trace[bb_cnt], path.addr)
                     if not hit and transition not in self.encountered:
-                        if path.state.satisfiable:
-                            l.info("dumping input for %x -> %x" % transition)
-                            #self._writeout(path)
+                        if path.state.satisfiable():
+                            l.debug("dumping input for %x -> %x" % transition)
+                            self._writeout(bb_trace[bb_cnt], path)
+                        else:
+                            l.debug("couldn't dump input for %x -> %x" % transition)
 
             trace_group.drop(stash='missed')
             
@@ -388,3 +390,19 @@ class Driller(object):
             bb_idx += 1
 
         return (bb_idx, bb_trace[bb_idx+1])
+
+### UTILS
+
+    def _writeout(self, prev_addr, path):
+
+        generated = path.state.posix.dumps(0)
+
+        # TODO checks here to see if the generation is worth writing to disk, too many inputs can
+        # seriously slow down AFL
+
+        file_prefix = "driller-%d-%x-%x-" % (len(generated), prev_addr, path.addr)
+        fd, outfile = tempfile.mkstemp(prefix=file_prefix, dir=self.out_dir)
+        os.close(fd)
+
+        with open(outfile, "w") as ofp:
+            ofp.write(generated)
