@@ -307,7 +307,7 @@ def constraint_trace(fn):
     bb_trace = qemu_traces[fn]
     total_length = len(bb_trace)
 
-    parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+    parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, simuvex.s_options.BYPASS_UNSUPPORTED_IROP})
     trace_group = project.path_group(immutable=False, save_unconstrained=True, save_unsat=True, paths=[parent_path])
 
 
