@@ -7,11 +7,20 @@ import os
 import multiprocessing
 import time
 import subprocess
+import functools
 
 import logging
 
 l = logging.getLogger("driller")
 l.setLevel("DEBUG")
+
+# shared objects for multiprocessing
+
+# lock for the catalogue file
+catalogue_lock = multiprocessing.RLock()
+
+# shared value for the output counter
+output_cnt     = multiprocessing.Value("L", 0, lock=True)
 
 class DrillerEnvironmentError(Exception):
     pass
@@ -69,9 +78,6 @@ class Driller(object):
         # some variables to speed up usage of the catalogue
         self.catalogue_cache  = set()
 
-        # lock for serializing access to the catalogue file
-        self.catalogue_lock   = multiprocessing.RLock()
-
         # previous size of the the catalogue cache
         self.catalogue_size   = 0
 
@@ -87,9 +93,6 @@ class Driller(object):
         
         # set of encountered basic block transition
         self.encountered      = set()
-
-        # shared objects for multiprocessing
-        self.output_cnt       = multiprocessing.Value("L", 0, lock=True)
 
         # setup directories for the driller and perform sanity checks on the directory structure here
         if not self._sane():
@@ -150,6 +153,7 @@ class Driller(object):
         '''
         prepare driller for running
         '''
+        global output_cnt
     
         # make the dock directory, or clean it
         try:
@@ -184,6 +188,7 @@ class Driller(object):
         l.debug("fuzz_bitmap of size %d bytes loaded" % self.fuzz_bitmap_size)
 
         # create the stat file
+        output_cnt.value = 0
         try:
             stat_blob = open(self.stats_file).read()
 
@@ -192,7 +197,7 @@ class Driller(object):
                 line = line.strip()
                 key, value = line.split(":") 
                 if key == "count":
-                    self.output_cnt.value = int(value)
+                    output_cnt.value = int(value)
                     break
 
         except IOError:
@@ -200,7 +205,7 @@ class Driller(object):
 
         # now create a new, updated driller_stats_file
         with open(self.stats_file, "w") as f:
-            f.write("count:%d\n" % self.output_cnt.value)
+            f.write("count:%d\n" % output_cnt.value)
             f.write("start:%d\n" % time.time())
 
         try:
@@ -309,6 +314,7 @@ class Driller(object):
 
         else:
             l.info("spinning up %d processes to get the job done" % self.proc_cnt)
+
             p = multiprocessing.Pool(self.proc_cnt)
             p.map(self._drill_input, self.inputs)
 
@@ -462,27 +468,29 @@ class Driller(object):
         :param next_addr: the destination address in the state transition
         :return: boolean describing whether or not the input generated is redundant
         '''
+        global catalogue_lock
 
         if (length, prev_addr, next_addr) in self.catalogue_cache:
             return True
 
         # if it's not in the cache a cache update is required, so grab the lock
-        self.catalogue_lock.acquire()
+        catalogue_lock.acquire()
 
         # have new entries been added to the cache?
         if self.catalogue_size != os.path.getsize(self.catalogue_file):
             self._cache_update()
             if (length, prev_addr, next_addr) in self.catalogue_cache:
-                self.catalogue_lock.release()
+                catalogue_lock.release()
                 return True
 
         # we need to update the cache
         self._catalogue_update((length, prev_addr, next_addr))
 
-        self.catalogue_lock.release()
+        catalogue_lock.release()
         return False
 
     def _writeout(self, prev_addr, path):
+        global output_cnt
 
         generated = path.state.posix.dumps(0)
 
@@ -492,7 +500,7 @@ class Driller(object):
             return
 
         out_filename = "driller-%d-%x-%x" % (len(generated), prev_addr, path.addr)
-        afl_name = "id:%06d,src:%s" % (self.output_cnt.value, out_filename)
+        afl_name = "id:%06d,src:%s" % (output_cnt.value, out_filename)
         out_file = os.path.join(os.path.abspath(self.queue_dir), afl_name)
 
         with open(out_file, "w") as ofp:
@@ -505,5 +513,5 @@ class Driller(object):
         os.symlink(out_file, dock_link)
 
         # increment the link
-        with self.output_cnt.get_lock():
-            self.output_cnt.value += 1
+        with output_cnt.get_lock():
+            output_cnt.value += 1
