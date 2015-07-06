@@ -221,7 +221,10 @@ class Driller(object):
             # touch traced file
             with open(self.traced_file, "a"):
                 os.utime(self.traced_file, None)
-            
+
+        # cleanse self.inputs of any files in traced
+        self.inputs = filter(lambda i: i not in self.traced, self.inputs)
+
         return True
 
     def _accumulate_traces(self):
@@ -253,7 +256,7 @@ class Driller(object):
             ofp.close()
 
             trace = open(logfile).read()
-            os.remove(logfile)
+            #os.remove(logfile)
 
             tracelines = trace.split("\n")
             tracelines = filter(lambda v: v.startswith("Trace"), tracelines)
@@ -309,6 +312,10 @@ class Driller(object):
             p = multiprocessing.Pool(self.proc_cnt)
             p.map(self._drill_input, self.inputs)
 
+        # update traced
+        with open(self.traced_file, "a") as f:
+            f.write('\n'.join(self.inputs) + '\n')
+
     def _drill_input(self, input_file):
         '''
         symbolically step down a path, choosing branches based off a dynamic trace we took earlier.
@@ -354,7 +361,7 @@ class Driller(object):
 
             # mimic AFL's indexing scheme
             if len(trace_group.stashes['missed']) > 0:
-                prev_loc = bb_trace[bb_cnt]
+                prev_loc = bb_trace[bb_cnt-1]
                 prev_loc = (prev_loc >> 4) ^ (prev_loc << 8)
                 prev_loc &= self.fuzz_bitmap_size - 1
                 prev_loc = prev_loc >> 1
@@ -365,7 +372,8 @@ class Driller(object):
 
                     hit = bool(ord(self.fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
 
-                    transition = (bb_trace[bb_cnt], path.addr)
+                    transition = (bb_trace[bb_cnt-1], path.addr)
+
                     if not hit and transition not in self.encountered:
                         if path.state.satisfiable():
                             l.debug("dumping input for %x -> %x" % transition)
