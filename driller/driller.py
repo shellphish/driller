@@ -44,7 +44,6 @@ class Driller(object):
         self.fuzz_bitmap_file = fuzz_bitmap_file
         self.qemu_dir         = qemu_dir
         self.proc_cnt         = proc_cnt
-        self.parallel         = parallel
 
         # the output directoy is organized into a dock, a queue, and stat files
 
@@ -60,9 +59,21 @@ class Driller(object):
         # organized as a list of filenames which have been traced seperated by line
         self.traced_file      = os.path.join(self.out_dir, self.TRACED_FILE)
 
+        # set of the files which have already been traced
+        self.traced           = set()
+
         # drilled catalogue file to prevent producing redundant inputs
         # organized as a list of length,start_addr,end_addr tuples seperated by line
         self.catalogue_file   = os.path.join(self.out_dir, self.CATALOGUE_FILE)
+
+        # some variables to speed up usage of the catalogue
+        self.catalogue_cache  = set()
+
+        # lock for serializing access to the catalogue file
+        self.catalogue_lock   = multiprocessing.RLock()
+
+        # previous size of the the catalogue cache
+        self.catalogue_size   = 0
 
         # stat file containing book keeping information
         # colon delimited key value pairs seperated by line
@@ -76,6 +87,9 @@ class Driller(object):
         
         # set of encountered basic block transition
         self.encountered      = set()
+
+        # shared objects for multiprocessing
+        self.output_cnt       = multiprocessing.Value("L", 0, lock=True)
 
         # setup directories for the driller and perform sanity checks on the directory structure here
         if not self._sane():
@@ -149,7 +163,7 @@ class Driller(object):
                 # preventing AFL from picking up inputs which it tested in a previous run
                 l.info("dock directory \"%s\" already exists, removing contents" % self.dock_dir)
                 for f in os.listdir(self.dock_dir):
-                    fpath = os.path.join(self.out_dir, f)
+                    fpath = os.path.join(self.dock_dir, f)
                     os.remove(fpath)
 
         # make the queue directory if it doesn't already exist
@@ -170,7 +184,6 @@ class Driller(object):
         l.debug("fuzz_bitmap of size %d bytes loaded" % self.fuzz_bitmap_size)
 
         # create the stat file
-        driller_cnt = 0
         try:
             stat_blob = open(self.stats_file).read()
 
@@ -179,7 +192,7 @@ class Driller(object):
                 line = line.strip()
                 key, value = line.split(":") 
                 if key == "count":
-                    driller_cnt = value
+                    self.output_cnt.value = int(value)
                     break
 
         except IOError:
@@ -187,11 +200,29 @@ class Driller(object):
 
         # now create a new, updated driller_stats_file
         with open(self.stats_file, "w") as f:
-            f.write("count:%d\n" % int(driller_cnt))
+            f.write("count:%d\n" % self.output_cnt.value)
             f.write("start:%d\n" % time.time())
 
-        return True
+        try:
+            with open(self.catalogue_file) as f:
+                self.catalogue_size = len(f.read())
+        except IOError:
+            # touch catalogue file
+            with open(self.catalogue_file, "a"):
+                os.utime(self.catalogue_file, None)
 
+        # update the catalogue cache
+        self._cache_update()
+
+        try:
+            with open(self.traced_file, "r") as f:
+                self.traced = set(f.read().split("\n"))
+        except IOError:
+            # touch traced file
+            with open(self.traced_file, "a"):
+                os.utime(self.traced_file, None)
+            
+        return True
 
     def _accumulate_traces(self):
         l.info("accumulating %d traces with QEMU" % len(self.inputs))
@@ -338,6 +369,8 @@ class Driller(object):
                     if not hit and transition not in self.encountered:
                         if path.state.satisfiable():
                             l.debug("dumping input for %x -> %x" % transition)
+                            # we writeout the new input as soon as possible to allow other AFL slaves
+                            # to work with it
                             self._writeout(bb_trace[bb_cnt], path)
                         else:
                             l.debug("couldn't dump input for %x -> %x" % transition)
@@ -379,16 +412,85 @@ class Driller(object):
 
 ### UTILS
 
+    def _cache_update(self):
+        '''
+        update our local catalogue cache with the value of the catalogue on disk.
+        assumes that the catalogue lock has been acquired
+        '''
+
+        catalogue_blob = open(self.catalogue_file).read()
+        self.catalogue_size = len(catalogue_blob)
+        for entry in catalogue_blob.split("\n")[:-1]:
+            l, paddr, naddr = map(lambda x: int(x, 16), entry.split(","))
+            self.catalogue_cache.add((l, paddr, naddr))
+
+    def _catalogue_update(self, entry):
+        '''
+        update the cache on disk with the entry
+
+        :param entry: entry to update the catalogue_file with
+        '''
+
+        new_entry = "%x,%x,%x\n" % entry
+
+        with open(self.catalogue_file, "a") as f:
+            f.write(new_entry)
+
+        self.catalogue_size += len(new_entry)
+        self.catalogue_cache.add(entry)
+
+    def _in_catalogue(self, length, prev_addr, next_addr):
+        '''
+        check if a generated input has already been generated earlier during the run or by another
+        thread.
+
+        :param length: length of the input
+        :param prev_addr: the source address in the state transition
+        :param next_addr: the destination address in the state transition
+        :return: boolean describing whether or not the input generated is redundant
+        '''
+
+        if (length, prev_addr, next_addr) in self.catalogue_cache:
+            return True
+
+        # if it's not in the cache a cache update is required, so grab the lock
+        self.catalogue_lock.acquire()
+
+        # have new entries been added to the cache?
+        if self.catalogue_size != os.path.getsize(self.catalogue_file):
+            self._cache_update()
+            if (length, prev_addr, next_addr) in self.catalogue_cache:
+                self.catalogue_lock.release()
+                return True
+
+        # we need to update the cache
+        self._catalogue_update((length, prev_addr, next_addr))
+
+        self.catalogue_lock.release()
+        return False
+
     def _writeout(self, prev_addr, path):
 
         generated = path.state.posix.dumps(0)
 
-        # TODO checks here to see if the generation is worth writing to disk, too many inputs can
-        # seriously slow down AFL
+        # checks here to see if the generation is worth writing to disk
+        # if we generate too many inputs which are not really different we'll seriously slow down AFL
+        if self._in_catalogue(len(generated), prev_addr, path.addr):
+            return
 
-        file_prefix = "driller-%d-%x-%x-" % (len(generated), prev_addr, path.addr)
-        fd, outfile = tempfile.mkstemp(prefix=file_prefix, dir=self.queue_dir)
-        os.close(fd)
+        out_filename = "driller-%d-%x-%x" % (len(generated), prev_addr, path.addr)
+        afl_name = "id:%06d,src:%s" % (self.output_cnt.value, out_filename)
+        out_file = os.path.join(os.path.abspath(self.queue_dir), afl_name)
 
-        with open(outfile, "w") as ofp:
+        with open(out_file, "w") as ofp:
             ofp.write(generated)
+
+        # symlink the file to the dock
+        dock_link = os.path.join(self.dock_dir, out_filename)
+
+        # if this raises an exception most likely some race condition is occuring
+        os.symlink(out_file, dock_link)
+
+        # increment the link
+        with self.output_cnt.get_lock():
+            self.output_cnt.value += 1
