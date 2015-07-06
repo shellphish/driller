@@ -377,8 +377,6 @@ class Driller(object):
 
             trace_group.drop(stash='missed')
             
-            bb_cnt += 1
-
     def _windup_to_branch(self, path_group, bb_trace, bb_idx):
         '''
         step through a path_group until multiple branches can be taken, we return the our new position 
@@ -390,9 +388,19 @@ class Driller(object):
         :return: a tuple of the new basic block index and the next move taken by the dynamic trace
         '''
 
-        previous = bb_trace[bb_idx]
         while len(path_group.active) == 1:
             current = path_group.active[0]
+
+            if len(bb_trace[bb_idx:]) == 0 and len(current.successors) == 0:
+                pass # angr makes one step after the _terminate call, qemu doesn't
+            elif current.addr == bb_trace[bb_idx]:
+                bb_idx += 1  # expected behaviour, the trace matches the angr basic block
+            elif current.addr == previous:
+                pass # angr steps through the same basic block trace when a syscall occurs
+            else:
+                l.error("The qemu trace and the angr trace differ, this most likely suggests a bug")
+                l.error("qemu [0x%x], angr [0x%x]" % (bb_trace[bb_idx], current.addr))
+                raise DrillerMisfollowError
 
             # we don't need these, free them to save memory
             current.trim_history()
@@ -405,10 +413,7 @@ class Driller(object):
         if len(path_group.active) == 0 and len(path_group.deadended) > 0:
             return (0, None)
 
-        while bb_trace[bb_idx] != previous:
-            bb_idx += 1
-
-        return (bb_idx, bb_trace[bb_idx+1])
+        return (bb_idx, bb_trace[bb_idx])
 
 ### UTILS
 
