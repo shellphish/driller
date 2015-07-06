@@ -256,7 +256,7 @@ class Driller(object):
             ofp.close()
 
             trace = open(logfile).read()
-            #os.remove(logfile)
+            os.remove(logfile)
 
             tracelines = trace.split("\n")
             tracelines = filter(lambda v: v.startswith("Trace"), tracelines)
