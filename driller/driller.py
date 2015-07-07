@@ -94,6 +94,9 @@ class Driller(object):
         # set of encountered basic block transition
         self.encountered      = set()
 
+        # start time, set by drill method
+        self.start_time       = time.time()
+
         # setup directories for the driller and perform sanity checks on the directory structure here
         if not self._sane():
             l.error("environment or parameters are unfit for a driller run")
@@ -206,7 +209,7 @@ class Driller(object):
         # now create a new, updated driller_stats_file
         with open(self.stats_file, "w") as f:
             f.write("count:%d\n" % output_cnt.value)
-            f.write("start:%d\n" % time.time())
+            f.write("start:%d\n" % self.start_time)
 
         try:
             with open(self.catalogue_file) as f:
@@ -515,3 +518,8 @@ class Driller(object):
         # increment the link
         with output_cnt.get_lock():
             output_cnt.value += 1
+
+            # update the stats file
+            with open(self.stats_file, "w") as f:
+                blob = "count:%d\nstart:%d\n" % (output_cnt.value, self.start_time)
+                f.write(blob)
