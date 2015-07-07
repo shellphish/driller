@@ -11,7 +11,7 @@ cd qemu
 git checkout tags/v2.3.0
 
 # apply the driller patch
-git apply ../patches/driller-qemu.patch
+git apply ../../patches/driller-qemu.patch
 
 ./driller-config
 make -j
@@ -19,8 +19,8 @@ make -j
 X64_DEST="x86_64-linux-user/qemu-x86_64"
 I386_DEST="i386-linux-user/qemu-i386"
 
-mv $X64_DEST ../driller_qemu/driller-qemu-x86_64
-mv $I386_DEST ../driller_qemu/driller-qemu-i386
+mv $X64_DEST ../../driller_qemu/driller-qemu-x86_64
+mv $I386_DEST ../../driller_qemu/driller-qemu-i386
 
 echo "Done with ELF qemu!"
 cd ..
@@ -33,7 +33,7 @@ git checkout origin/base_driller
 ./cgc_configure_opt
 make -j
 pwd
-cp i386-linux-user/qemu-i386 ../driller_qemu/driller-qemu-cgc
+cp i386-linux-user/qemu-i386 ../../driller_qemu/driller-qemu-cgc
 
 echo "Done with CGC qemu!"
 echo "All done!"
