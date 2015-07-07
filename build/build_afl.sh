@@ -1,4 +1,11 @@
-#!/bin/sh
+#!/bin/bash -e
+
+# cd into the build directory
+pushd $(dirname "$0") >/dev/null
+BUILD_DIR="`pwd`"
+popd >/dev/null
+
+cd $BUILD_DIR
 
 # require afl 1.83b
 AFL_URL="http://lcamtuf.coredump.cx/afl/releases/afl-1.83b.tgz"
