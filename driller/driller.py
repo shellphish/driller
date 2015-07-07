@@ -100,12 +100,12 @@ class Driller(object):
         # setup directories for the driller and perform sanity checks on the directory structure here
         if not self._sane():
             l.error("environment or parameters are unfit for a driller run")
-            return
+            raise DrillerEnvironmentError
 
         # setup the output directory and special files for tracking
         if not self._setup():
             l.error("unable to setup environment for driller")
-            return
+            raise DrillerEnvironmentError
 
         self._accumulate_traces()
 
