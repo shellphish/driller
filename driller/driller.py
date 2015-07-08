@@ -1,3 +1,9 @@
+import logging
+import logconfig
+
+l = logging.getLogger("driller")
+l.setLevel("INFO")
+
 import angr
 import simuvex
 import archinfo
@@ -8,11 +14,6 @@ import multiprocessing
 import time
 import subprocess
 import functools
-
-import logging
-
-l = logging.getLogger("driller")
-l.setLevel("DEBUG")
 
 # shared objects for multiprocessing
 
@@ -96,6 +97,8 @@ class Driller(object):
 
         # start time, set by drill method
         self.start_time       = time.time()
+
+        l.info("drilling started on %s" % time.ctime(self.start_time))
 
         # setup directories for the driller and perform sanity checks on the directory structure here
         if not self._sane():
@@ -337,8 +340,8 @@ class Driller(object):
         # grab the dynamic basic block trace
         bb_trace = self.traces[input_file]
 
-        l.info("drilling into \"%s\"" % input_file)
-        l.info("input \"%s\" has a basic block trace of %d addresses" % (input_file, len(bb_trace)))
+        l.debug("drilling into \"%s\"" % input_file)
+        l.debug("input \"%s\" has a basic block trace of %d addresses" % (input_file, len(bb_trace)))
 
         project = angr.Project(self.binary)
         parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
