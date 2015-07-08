@@ -1,0 +1,2 @@
+run ./build/setup.sh to install in current directory. mostly just builds a version of qemu for driller
+and builds AFL with driller patches applied
