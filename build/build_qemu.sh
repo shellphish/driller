@@ -4,12 +4,12 @@ pushd $(dirname "$0") >/dev/null
 BUILD_DIR="`pwd`"
 popd >/dev/null
 
-DRILLER_QEMU="../driller-qemu/"
+DRILLER_QEMU="driller-qemu/"
 
 cd $BUILD_DIR
 
 # make a directory for our modified qemu
-mkdir $DRILLER_QEMU
+mkdir ../$DRILLER_QEMU
 
 # require qemu 2.3.0
 QEMU_GIT="git://git.qemu.org/qemu.git"
@@ -40,7 +40,7 @@ cd cgc_qemu
 git checkout origin/base_driller
 ./cgc_configure_opt
 make -j
-pwd
+
 cp i386-linux-user/qemu-i386 ../../$DRILLER_QEMU/driller-qemu-cgc
 
 echo "Done with CGC qemu!"
