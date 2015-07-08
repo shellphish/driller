@@ -4,6 +4,11 @@ import angr
 import string
 import sys
 
+'''
+create AFL dictionary of string references found in the binary. should allow AFL to explore more paths
+without having to request symbolic execution.
+'''
+
 def hexescape(s):
     out = [ ] 
     acceptable = string.letters + string.digits + " ."

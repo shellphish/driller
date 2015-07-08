@@ -64,7 +64,7 @@ function show_stats() {
 
     log_info real runtime: $TIME_STR
 
-    $1/afl-1.83b/afl-whatsup $2 | tail -n 9
+    $1/afl-whatsup $2 | tail -n 9
 }
 
 function terminate() {
@@ -103,8 +103,10 @@ DRILLER_DIR="$(pwd)"
 popd >/dev/null
 
 AFL_BIN="$DRILLER_DIR/driller-afl-fuzz"
-DRILLER_PATH="$DRILLER_DIR/driller/drill.py"
-CREATE_DICT_PATH="$DRILLER_DIR/driller/create_dict.py"
+AFL_DIR="$DRILLER_DIR/build/afl-1.83b/"
+DRILLER_PATH="$DRILLER_DIR/drill.py"
+CREATE_DICT_PATH="$DRILLER_DIR/bin/create_dict.py"
+QEMU_DIR="$DRILLER_DIR/driller-qemu"
 
 log_info "creating dictionary of string references from the binary to improve performance"
 
@@ -117,7 +119,7 @@ if [[ $? == 1 ]]; then
     DICTIONARY_OPT=""
 fi
 
-export AFL_PATH="$DRILLER_DIR/afl-1.83b"
+export AFL_PATH="$DRILLER_DIR/build/afl-1.83b"
 
 MASTER_LOG="$SYNC_ID-master.log"
 
@@ -148,7 +150,7 @@ log_info "$DRILLER_SLAVES slaves will be able to invoke driller"
 
 for i in $(seq 1 $DRILLER_SLAVES); do
     LOG_FILE="$SYNC_ID-$i.log"
-    $AFL_BIN -m 8G -Q -D "$DRILLER_PATH" $DICTIONARY_OPT -i $INPUT_DIR -o $SYNC_DIR -j $DRILLER_THREADS -S "$SYNC_ID-$i" -- $BINARY > $LOG_FILE &
+    $AFL_BIN -m 8G -Q -D "$DRILLER_PATH" $DICTIONARY_OPT -i $INPUT_DIR -o $SYNC_DIR -j $DRILLER_THREADS -S "$SYNC_ID-$i" -q $QEMU_DIR -- $BINARY > $LOG_FILE &
 
     if [[ $? != 0 ]]; then
         die "unable to invoke AFL slave #$i check $LOG_FILE for likely problems"
@@ -171,9 +173,9 @@ done
 START_TIME="$(date +%s)"
 log_info "everything spun up at $(date -d @$START_TIME)"
 
-trap "terminate $DRILLER_DIR $SYNC_DIR $START_TIME" SIGINT
+trap "terminate $AFL_DIR $SYNC_DIR $START_TIME" SIGINT
 
 while read line; do
     log_info "displaying summary from afl-whatsup"
-    show_stats $DRILLER_DIR $SYNC_DIR $START_TIME
+    show_stats $AFL_DIR $SYNC_DIR $START_TIME
 done

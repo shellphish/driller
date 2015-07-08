@@ -1,7 +1,15 @@
-#!/bin/sh
+#!/bin/bash -e
+
+pushd $(dirname "$0") >/dev/null
+BUILD_DIR="`pwd`"
+popd >/dev/null
+
+DRILLER_QEMU="driller-qemu/"
+
+cd $BUILD_DIR
 
 # make a directory for our modified qemu
-mkdir driller_qemu
+mkdir ../$DRILLER_QEMU
 
 # require qemu 2.3.0
 QEMU_GIT="git://git.qemu.org/qemu.git"
@@ -11,7 +19,7 @@ cd qemu
 git checkout tags/v2.3.0
 
 # apply the driller patch
-git apply ../patches/driller-qemu.patch
+git apply ../../patches/driller-qemu.patch
 
 ./driller-config
 make -j
@@ -19,8 +27,8 @@ make -j
 X64_DEST="x86_64-linux-user/qemu-x86_64"
 I386_DEST="i386-linux-user/qemu-i386"
 
-mv $X64_DEST ../driller_qemu/driller-qemu-x86_64
-mv $I386_DEST ../driller_qemu/driller-qemu-i386
+mv $X64_DEST ../../$DRILLER_QEMU/driller-qemu-x86_64
+mv $I386_DEST ../../$DRILLER_QEMU/driller-qemu-i386
 
 echo "Done with ELF qemu!"
 cd ..
@@ -32,8 +40,8 @@ cd cgc_qemu
 git checkout origin/base_driller
 ./cgc_configure_opt
 make -j
-pwd
-cp i386-linux-user/qemu-i386 ../driller_qemu/driller-qemu-cgc
+
+cp i386-linux-user/qemu-i386 ../../$DRILLER_QEMU/driller-qemu-cgc
 
 echo "Done with CGC qemu!"
 echo "All done!"

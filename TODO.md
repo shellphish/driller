@@ -1,8 +1,8 @@
-* Add stricter checks for whether a state transition is worth dumping
-    - Along with this a new experimental feature for keeping track of which state transitions AFL has
-      trouble getting through, these could be found by looking at which state transitions we drilled
-      into and seeing how many AFL inputs were able to build on top of these drilled inputs 
-      successfully.
+* Make qemu's and angr's randomness deterministic and the same
+
+* Ditch tracing if it we've been tracing a while and we've already found some inputs
+
+* Add detection of inputs AFL has trouble mutating
 
 * Make driller spin up smarter
     - Do fuzzer syncing before invoking driller, if fuzzer syncing brings in a new, interesting input
@@ -17,5 +17,3 @@
 * test cases for driller
 
 * add binaries to angr repo
-
-* Integrate with angr's logging
