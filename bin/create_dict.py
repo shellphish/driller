@@ -24,19 +24,23 @@ def hexescape(s):
 def main(argc, argv):
 
     if (argc < 3):
-        print "usage: %s <binary> <dictfile>"
+        print "usage: %s <binary> <dictfile>" % argv[1]
         sys.exit(1)
 
     binary = argv[1] 
     dictfile = argv[2]
 
-    try:
-        b = angr.Project(binary)
-        cfg = b.analyses.CFG(keep_input_state=True)
+    b = angr.Project(binary)
+    cfg = b.analyses.CFG(keep_input_state=True)
 
-        string_references = sum([f.string_references() for f in cfg.function_manager.functions.values()], []) 
-    except:
-        sys.exit(1)
+    string_references = [ ] 
+    for f in cfg.function_manager.functions.values():
+        try:
+            string_references.append(f.string_references())
+        except ZeroDivisionError:
+            pass
+            
+    string_references = sum(string_references, []) 
 
     strings = [] if len(string_references) == 0 else zip(*string_references)[1]
 
