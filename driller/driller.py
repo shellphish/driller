@@ -437,12 +437,12 @@ class Driller(object):
 
                     if not hit and transition not in self.encountered:
                         if path.state.satisfiable():
-                            l.debug("dumping input for %x -> %x" % transition)
+                            l.info("dumping input for %x -> %x" % transition)
                             # we writeout the new input as soon as possible to allow other AFL slaves
                             # to work with it
                             self._writeout(bb_trace[bb_cnt], path)
                         else:
-                            l.debug("couldn't dump input for %x -> %x" % transition)
+                            l.info("couldn't dump input for %x -> %x" % transition)
 
             trace_group.drop(stash='missed')
             
