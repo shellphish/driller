@@ -9,6 +9,10 @@ import driller
 
 import argparse
 import sys
+import logging
+
+l = logging.getLogger("drill")
+l.setLevel("INFO")
 
 def main(argc, argv):
     parser = argparse.ArgumentParser(description="Increase AFL's code coverage")
@@ -58,7 +62,8 @@ def main(argc, argv):
                         dest="sync_dir",
                         type=str,
                         metavar="<sync_dir>",
-                        help="AFL's sync directory")
+                        help="AFL's sync directory",
+                        default=None)
         
 
     args = parser.parse_args()
@@ -69,10 +74,12 @@ def main(argc, argv):
     fuzz_bitmap = args.fuzz_bitmap
     qemu_dir    = args.qemu_dir
     proc_cnt    = args.proc_cnt
+    sync_dir    = args.sync_dir
 
     try:
-        d = driller.Driller(binary, in_dir, out_dir, fuzz_bitmap, qemu_dir, proc_cnt)
+        d = driller.Driller(binary, in_dir, out_dir, fuzz_bitmap, qemu_dir, proc_cnt, sync_dir)
     except driller.DrillerConservativeStartup:
+        l.info("another driller process has already been invoked recently")
         return 1
 
     d.drill()
