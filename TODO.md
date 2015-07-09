@@ -1,5 +1,3 @@
-* Make qemu's and angr's randomness deterministic and the same
-
 * Ditch tracing if it we've been tracing a while and we've already found some inputs
 
 * Add detection of inputs AFL has trouble mutating
