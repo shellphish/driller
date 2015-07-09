@@ -54,6 +54,13 @@ def main(argc, argv):
                         help="number of processes to invoke",
                         default=1)
 
+    parser.add_argument("-s",
+                        dest="sync_dir",
+                        type=str,
+                        metavar="<sync_dir>",
+                        help="AFL's sync directory")
+        
+
     args = parser.parse_args()
     
     binary      = args.binary
