@@ -344,6 +344,9 @@ class Driller(object):
         l.debug("input \"%s\" has a basic block trace of %d addresses" % (input_file, len(bb_trace)))
 
         project = angr.Project(self.binary)
+        # apply special simprocedures
+        self._set_simprocedures(project)
+
         parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
 
         # TODO: detect unconstrained paths
@@ -436,6 +439,14 @@ class Driller(object):
         return (bb_idx, bb_trace[bb_idx])
 
 ### UTILS
+
+    def _set_simprocedures(self, project):
+        from simprocedures import cgc_simprocedures
+
+        # TODO: support more than CGC
+        simprocs = cgc_simprocedures
+        for symbol, procedure in simprocs:
+          simuvex.SimProcedures['cgc'][symbol] = procedure
 
     def _cache_update(self):
         '''
