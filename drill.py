@@ -63,7 +63,10 @@ def main(argc, argv):
     qemu_dir    = args.qemu_dir
     proc_cnt    = args.proc_cnt
 
-    d = driller.Driller(binary, in_dir, out_dir, fuzz_bitmap, qemu_dir, proc_cnt)
+    try:
+        d = driller.Driller(binary, in_dir, out_dir, fuzz_bitmap, qemu_dir, proc_cnt)
+    except driller.DrillerConservativeStartup:
+        return 1
 
     d.drill()
 

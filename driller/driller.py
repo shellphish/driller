@@ -29,6 +29,9 @@ class DrillerEnvironmentError(Exception):
 class DrillerMisfollowError(Exception):
     pass
 
+class DrillerConservativeStartup(Exception):
+    pass
+
 class Driller(object):
     '''
     Driller object, can invoke many processes to trace inputs and drill into new state transitions.
@@ -37,8 +40,11 @@ class Driller(object):
     TRACED_FILE    = "traced"
     CATALOGUE_FILE = "driller_catalogue"
     STATS_FILE     = "driller_stats"
+    ALIVE_FILE     = "alive"
+    SOLO_INTERVAL  = 60 * 30             # 30 minutes
 
-    def __init__(self, binary, in_dir, out_dir, fuzz_bitmap_file, qemu_dir, proc_cnt=1):
+    def __init__(self, binary, in_dir, out_dir, fuzz_bitmap_file, qemu_dir, proc_cnt=1,
+                 sync_dir=None):
         '''
         :param binary: the binary to be traced
         :param in_dir: directory of inputs to feed to the binary
@@ -54,6 +60,11 @@ class Driller(object):
         self.fuzz_bitmap_file = fuzz_bitmap_file
         self.qemu_dir         = qemu_dir
         self.proc_cnt         = proc_cnt
+        self.parallel         = False if sync_dir is None else True
+        self.sync_dir         = sync_dir
+
+        if self.parallel:
+            self._conservative_startup_check()
 
         # the output directoy is organized into a dock, a queue, and stat files
 
@@ -233,6 +244,10 @@ class Driller(object):
             with open(self.traced_file, "a"):
                 os.utime(self.traced_file, None)
 
+        # create the alive file for our dumb method of conservative startup
+        f = open(os.path.join(self.out_dir, self.ALIVE_FILE), "w")
+        f.close()
+
         # cleanse self.inputs of any files in traced
         self.inputs = filter(lambda i: i not in self.traced, self.inputs)
 
@@ -306,6 +321,35 @@ class Driller(object):
 
         return arch
 
+    def _conservative_startup_check(self):
+        '''
+        dumb method of checking if any driller processes have been invoked recently
+        '''
+        checktime = int(time.time())
+
+        startup_times = [ ]
+        # check all the slave directories
+        for directory in os.listdir(self.sync_dir):
+            stats_file = os.path.join(self.sync_dir, directory, self.STATS_FILE)
+            if os.path.exists(stats_file):
+                stat_blob = open(stats_file).read()
+                for line in stat_blob.split("\n"):
+                    key, value = line.split(":")
+                    if key == "start":
+                        startup_time = int(value)
+                        break
+
+                alive_file = os.path.join(self.sync_dir, directory, self.ALIVE_FILE)
+                alive = os.path.exists(alive_file)
+
+                if alive:
+                    startup_times.append(startup_time)
+
+        if len(startup_times) > 0:
+            if (checktime - max(startup_times)) < self.SOLO_INTERVAL:
+                raise DrillerConservativeStartup
+
+
 ### DRILLING
 
     def drill(self):
@@ -327,6 +371,8 @@ class Driller(object):
         # update traced
         with open(self.traced_file, "a") as f:
             f.write('\n'.join(self.inputs) + '\n')
+
+        os.remove(os.path.join(self.out_dir, self.ALIVE_FILE))
 
     def _drill_input(self, input_file):
         '''
