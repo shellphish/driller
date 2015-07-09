@@ -1,6 +1,15 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/qemu_mode/build_qemu_support.sh	2015-04-29 20:34:59.000000000 -0700
-+++ build_qemu_support.sh	2015-06-24 16:45:01.095775984 -0700
-@@ -150,37 +150,71 @@
++++ build_qemu_support.sh	2015-07-09 15:13:42.325283555 -0700
+@@ -139,7 +139,7 @@
+ 
+ echo "[*] Attempting to build QEMU (fingers crossed!)..."
+ 
+-make || exit 1
++make -j || exit 1
+ 
+ echo "[+] Build process successful!"
+ 
+@@ -150,37 +150,74 @@
  cd ..
  ls -l ../afl-qemu-trace || exit 1
  
@@ -47,45 +56,43 @@
 +git -C $QEMU_DIR pull || exit 1
 +echo "[+] Checked out."
 +
-+echo "[*] Configuring QEMU..."
-+
-+cd $QEMU_DIR || exit 1
-+
-+./cgc_configure_opt
-+
-+echo "[+] Configuration complete."
-+
-+echo "[*] Attempting to build QEMU (fingers crossed!)..."
++echo "[*] Attempting to merge in driller's changes"
++git -C qemu-cgc-afl apply ../../../../patches/driller-cgc-qemu-afl.patch || exit 1
  
 -echo "[*] Testing the build..."
-+make -j7 || exit 1
++echo "[*] Configuring QEMU..."
  
 -cd ..
 -
 -make >/dev/null || exit 1
--
++cd $QEMU_DIR || exit 1
+ 
 -gcc test-instr.c -o test-instr || exit 1
--
++./cgc_configure_opt
+ 
 -unset AFL_INST_RATIO
--
++echo "[+] Configuration complete."
+ 
 -echo 0 | ./afl-showmap -m none -Q -q -o .test-instr0 ./test-instr || exit 1
 -echo 1 | ./afl-showmap -m none -Q -q -o .test-instr1 ./test-instr || exit 1
-+echo "[+] Build process successful!"
- 
+-
 -rm -f test-instr
-+echo "[*] Copying binary..."
++echo "[*] Attempting to build QEMU (fingers crossed!)..."
  
 -cmp -s .test-instr0 .test-instr1
 -DR="$?"
-+cp -f "i386-linux-user/qemu-i386" "../../afl-qemu-trace-cgc" || exit 1
++make -j || exit 1
  
 -rm -f .test-instr0 .test-instr1
--
++echo "[+] Build process successful!"
+ 
 -if [ "$DR" = "0" ]; then
--
++echo "[*] Copying binary..."
+ 
 -  echo "[-] Error: afl-qemu-trace instrumentation doesn't seem to work!"
 -  exit 1
--
++cp -f "i386-linux-user/qemu-i386" "../../afl-qemu-trace-cgc" || exit 1
+ 
 -fi
 +cd ..
 +ls -l ../afl-qemu-trace-cgc || exit 1

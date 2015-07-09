@@ -1,0 +1,25 @@
+From 9c85b75b2b07520ae08656b0a14eecf54ac07102 Mon Sep 17 00:00:00 2001
+From: Nick 'mpizza' Stephens <nick.d.stephens@gmail.com>
+Date: Thu, 9 Jul 2015 15:09:46 -0700
+Subject: [PATCH] Deterministic rand
+
+---
+ linux-user/syscall.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/linux-user/syscall.c b/linux-user/syscall.c
+index 73cb7b7..281d3e4 100644
+--- a/linux-user/syscall.c
++++ b/linux-user/syscall.c
+@@ -474,7 +474,7 @@ static abi_long do_random(abi_ulong buf, abi_long count, abi_ulong p_rnd_out)
+     for (i = 0; i < count; i += sizeof(randval)) {
+         /* CGC TODO: Should I worry about multi-threading? */
+         _Static_assert(RAND_MAX >= INT16_MAX, "I rely on RAND_MAX giving at least 16 random bits");
+-        randval = rand() & 0xFFFFu;
++        randval = 0x4141 & 0xFFFFu;
+         size = ((count - i) < sizeof(randval)) ? (count - i) : sizeof(randval);
+         if (size == 1) {
+             ret = put_user_u8((uint8_t) randval, buf + i);
+-- 
+1.9.1
+
