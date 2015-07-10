@@ -79,7 +79,7 @@ def main(argc, argv):
     try:
         d = driller.Driller(binary, in_dir, out_dir, fuzz_bitmap, qemu_dir, proc_cnt, sync_dir)
     except driller.DrillerConservativeStartup:
-        l.info("another driller process has already been invoked recently")
+        l.info("another driller process has already been invoked recently, refusing to spin up")
         return 1
 
     d.drill()
