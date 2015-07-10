@@ -561,7 +561,7 @@ class Driller(object):
         if self._in_catalogue(len(generated), prev_addr, path.addr):
             return
 
-        l.info("dumping input for %x -> %x" % transition)
+        l.info("dumping input for %x -> %x" % (prev_addr, path.addr))
 
         out_filename = "driller-%d-%x-%x" % (len(generated), prev_addr, path.addr)
         afl_name = "id:%06d,src:%s" % (output_cnt.value, out_filename)
