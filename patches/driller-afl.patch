@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-07-08 22:45:10.594320980 -0700
++++ afl-fuzz.c	2015-07-09 19:17:16.969027929 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -219,7 +219,7 @@
      return new_argv;
  
    }
-@@ -7257,6 +7299,107 @@
+@@ -7257,6 +7299,112 @@
  
  }
  
@@ -285,6 +285,11 @@
 +        {
 +            PFATAL("waitpid");
 +        }
++
++        /* if the driller refused to run because another driller was started earlier enough
++         * we return immediately to avoid crashing when trying to read the dock directory */
++        if (WIFEXITED(status) && (WEXITSTATUS(status) != 0)) return;
++
 +        /* everything in driller_dock get's added to the queue */
 +        read_testcases(driller_dock);
 +
@@ -327,7 +332,7 @@
  
  /* Main entry point */
  
-@@ -7274,7 +7417,7 @@
+@@ -7274,7 +7422,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -336,7 +341,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7436,22 @@
+@@ -7293,6 +7441,22 @@
          out_dir = optarg;
          break;
  
@@ -359,7 +364,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7629,7 @@
+@@ -7470,7 +7634,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -368,7 +373,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7646,7 @@
+@@ -7487,6 +7651,7 @@
  
    start_time = get_cur_time();
  
@@ -376,7 +381,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7717,21 @@
+@@ -7557,6 +7722,21 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  

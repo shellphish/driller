@@ -84,5 +84,7 @@ def main(argc, argv):
 
     d.drill()
 
+    return 0
+
 if __name__ == "__main__":
     sys.exit(main(len(sys.argv), sys.argv))
