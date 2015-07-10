@@ -41,7 +41,7 @@ class Driller(object):
     CATALOGUE_FILE = "driller_catalogue"
     STATS_FILE     = "driller_stats"
     ALIVE_FILE     = "alive"
-    SOLO_INTERVAL  = 60 * 30             # 30 minutes
+    SOLO_INTERVAL  = 60 * 20             # 20 minutes
 
     def __init__(self, binary, in_dir, out_dir, fuzz_bitmap_file, qemu_dir, proc_cnt=1,
                  sync_dir=None):
