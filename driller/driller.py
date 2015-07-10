@@ -440,7 +440,7 @@ class Driller(object):
                             l.info("dumping input for %x -> %x" % transition)
                             # we writeout the new input as soon as possible to allow other AFL slaves
                             # to work with it
-                            self._writeout(bb_trace[bb_cnt], path)
+                            self._writeout(bb_trace[bb_cnt-1], path)
                         else:
                             l.info("couldn't dump input for %x -> %x" % transition)
 
