@@ -437,7 +437,6 @@ class Driller(object):
 
                     if not hit and transition not in self.encountered:
                         if path.state.satisfiable():
-                            l.info("dumping input for %x -> %x" % transition)
                             # we writeout the new input as soon as possible to allow other AFL slaves
                             # to work with it
                             self._writeout(bb_trace[bb_cnt-1], path)
@@ -561,6 +560,8 @@ class Driller(object):
         # if we generate too many inputs which are not really different we'll seriously slow down AFL
         if self._in_catalogue(len(generated), prev_addr, path.addr):
             return
+
+        l.info("dumping input for %x -> %x" % transition)
 
         out_filename = "driller-%d-%x-%x" % (len(generated), prev_addr, path.addr)
         afl_name = "id:%06d,src:%s" % (output_cnt.value, out_filename)
