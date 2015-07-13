@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/qemu_mode/build_qemu_support.sh	2015-04-29 20:34:59.000000000 -0700
-+++ build_qemu_support.sh	2015-07-09 15:13:42.325283555 -0700
++++ build_qemu_support.sh	2015-07-12 22:01:28.223530410 -0700
 @@ -139,7 +139,7 @@
  
  echo "[*] Attempting to build QEMU (fingers crossed!)..."
@@ -9,7 +9,7 @@
  
  echo "[+] Build process successful!"
  
-@@ -150,37 +150,74 @@
+@@ -150,37 +150,80 @@
  cd ..
  ls -l ../afl-qemu-trace || exit 1
  
@@ -57,7 +57,13 @@
 +echo "[+] Checked out."
 +
 +echo "[*] Attempting to merge in driller's changes"
-+git -C qemu-cgc-afl apply ../../../../patches/driller-cgc-qemu-afl.patch || exit 1
++
++# we have to do this for the merge to work, the changes in base driller should probably 
++# just be merged into AFL
++git config --global user.name "driller"
++git config --global user.email "driller@example.com"
++
++git -C $QEMU_DIR merge origin/base_driller -m "Merge it!" || exit 1
  
 -echo "[*] Testing the build..."
 +echo "[*] Configuring QEMU..."
