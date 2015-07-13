@@ -396,7 +396,7 @@ class Driller(object):
         parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
 
         # TODO: detect unconstrained paths
-        trace_group = project.path_group(immutable=False, paths=[parent_path])
+        trace_group = project.path_group(immutable=False, save_unconstrained=True, paths=[parent_path])
 
         # used for following the dynamic trace
         bb_cnt = 0
@@ -410,6 +410,9 @@ class Driller(object):
         while len(trace_group.active) > 0:
 
             bb_cnt, next_move = self._windup_to_branch(trace_group, bb_trace, bb_cnt)
+
+            if len(trace_group.stashes['unconstrained']):
+                l.info("%d unconstrained paths spotted!" % len(trace_group.stashes['uncounstrained']))
 
             # move the transition which the dynamic trace didn't encounter to the 'missed' stash
             trace_group.stash_not_addr(next_move, to_stash='missed')
@@ -441,7 +444,7 @@ class Driller(object):
                             # to work with it
                             self._writeout(bb_trace[bb_cnt-1], path)
                         else:
-                            l.info("couldn't dump input for %x -> %x" % transition)
+                            l.debug("couldn't dump input for %x -> %x" % transition)
 
             trace_group.drop(stash='missed')
             
