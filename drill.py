@@ -66,11 +66,6 @@ def main(argv):
                         metavar="<sync_dir>",
                         help="AFL's sync directory",
                         default=None)
-
-    parser.add_argument("-n",
-                        dest="offset",
-                        type=int,
-                        default=0)
         
 
     args = parser.parse_args(argv)
@@ -83,17 +78,9 @@ def main(argv):
     proc_cnt    = args.proc_cnt
     sync_dir    = args.sync_dir
 
-    results = []
-
-    input = [d for d in os.listdir(in_dir) if not d.startswith('.')][args.offset]
-
-    print "spawning worker for %r!" % input
-    input_data = open(os.path.join(in_dir, input), 'rb').read()
-    print input_data
-    results.append(driller.tasks.drill.delay(binary, input_data, out_dir, open(fuzz_bitmap, 'rb').read(), qemu_dir))
-
-    for res in results:
-        print res.get()
+    for input_file in (d for d in os.listdir(in_dir) if not d.startswith('.')):
+        input_data = open(os.path.join(in_dir, input), 'rb').read()
+        driller.tasks.drill.delay(binary, input_data, out_dir, open(fuzz_bitmap, 'rb').read(), qemu_dir)
 
     return 0
 
