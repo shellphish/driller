@@ -6,15 +6,17 @@ Frontend for driller, AFL invokes this script when it's having trouble making an
 
 import angr
 import driller
+import driller.tasks
 
 import argparse
-import sys
 import logging
+import os
+import sys
 
 l = logging.getLogger("drill")
 l.setLevel("INFO")
 
-def main(argc, argv):
+def main(argv):
     parser = argparse.ArgumentParser(description="Increase AFL's code coverage")
     
     parser.add_argument("-b", dest="binary", 
@@ -64,9 +66,14 @@ def main(argc, argv):
                         metavar="<sync_dir>",
                         help="AFL's sync directory",
                         default=None)
+
+    parser.add_argument("-n",
+                        dest="offset",
+                        type=int,
+                        default=0)
         
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     
     binary      = args.binary
     in_dir      = args.in_dir
@@ -76,15 +83,19 @@ def main(argc, argv):
     proc_cnt    = args.proc_cnt
     sync_dir    = args.sync_dir
 
-    try:
-        d = driller.Driller(binary, in_dir, out_dir, fuzz_bitmap, qemu_dir, proc_cnt, sync_dir)
-    except driller.DrillerConservativeStartup:
-        l.info("another driller process has already been invoked recently, refusing to spin up")
-        return 1
+    results = []
 
-    d.drill()
+    input = [d for d in os.listdir(in_dir) if not d.startswith('.')][args.offset]
+
+    print "spawning worker for %r!" % input
+    input_data = open(os.path.join(in_dir, input), 'rb').read()
+    print input_data
+    results.append(driller.tasks.drill.delay(binary, input_data, out_dir, open(fuzz_bitmap, 'rb').read(), qemu_dir))
+
+    for res in results:
+        print res.get()
 
     return 0
 
 if __name__ == "__main__":
-    sys.exit(main(len(sys.argv), sys.argv))
+    sys.exit(main(sys.argv))
