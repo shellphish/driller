@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-07-17 15:59:29.917713699 -0700
++++ afl-fuzz.c	2015-07-17 16:07:53.673704887 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -9,7 +9,7 @@
  
  /* Lots of globals, but mostly for the status UI and other things where it
     really makes no sense to haul them around as function parameters. */
-@@ -66,13 +68,19 @@
+@@ -66,13 +68,17 @@
  static u8 *in_dir,                    /* Input directory with test cases  */
            *out_file,                  /* File to fuzz, if any             */
            *out_dir,                   /* Working & output directory       */
@@ -25,12 +25,10 @@
 +          *orig_cmdline,              /* Original command line            */
 +          file_type,                  /* ELF or CGC binary?               */
 +          *driller_qemu;              /* driller QEMU directory           */
-+
-+static u8 *driller_procs = "1";       /* Number of driller procs to use   */
  
  static u32 exec_tmout = EXEC_TIMEOUT; /* Configurable exec timeout (ms)   */
  static u64 mem_limit = MEM_LIMIT;     /* Memory cap for child (MB)        */
-@@ -153,7 +161,8 @@
+@@ -153,7 +159,8 @@
             bytes_trim_in,             /* Bytes coming into the trimmer    */
             bytes_trim_out,            /* Bytes coming outa the trimmer    */
             blocks_eff_total,          /* Blocks subject to effector maps  */
@@ -40,7 +38,7 @@
  
  static u32 subseq_hangs;              /* Number of hangs in a row         */
  
-@@ -532,7 +541,7 @@
+@@ -532,7 +539,7 @@
    fn = alloc_printf("%s/queue/.state/deterministic_done/%s", out_dir, fn + 1);
  
    fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -49,7 +47,7 @@
    close(fd);
  
    ck_free(fn);
-@@ -555,7 +564,7 @@
+@@ -555,7 +562,7 @@
    if (symlink(ldest, fn)) {
  
      s32 fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -58,7 +56,7 @@
      close(fd);
  
    }
-@@ -586,7 +595,7 @@
+@@ -586,7 +593,7 @@
    if (state) {
  
      fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -67,7 +65,7 @@
      close(fd);
  
    } else {
-@@ -1242,7 +1251,7 @@
+@@ -1242,7 +1249,7 @@
  /* Read all testcases from the input directory, then queue them for testing.
     Called at startup. */
  
@@ -76,7 +74,7 @@
  
    struct dirent **nl;
    s32 nl_cnt;
-@@ -1280,6 +1289,10 @@
+@@ -1280,6 +1287,10 @@
  
      struct stat st;
  
@@ -87,7 +85,7 @@
      u8* fn = alloc_printf("%s/%s", in_dir, nl[i]->d_name);
      u8* dfn = alloc_printf("%s/.state/deterministic_done/%s", in_dir, nl[i]->d_name);
  
-@@ -2686,7 +2699,7 @@
+@@ -2686,7 +2697,7 @@
  
  static void link_or_copy(u8* old_path, u8* new_path) {
  
@@ -96,7 +94,7 @@
    s32 sfd, dfd;
    u8* tmp;
  
-@@ -2696,7 +2709,7 @@
+@@ -2696,7 +2707,7 @@
    if (sfd < 0) PFATAL("Unable to open '%s'", old_path);
  
    dfd = open(new_path, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -105,7 +103,7 @@
  
    tmp = ck_alloc(64 * 1024);
  
-@@ -3691,7 +3704,7 @@
+@@ -3691,7 +3702,7 @@
  
    sprintf(tmp + banner_pad, "%s " cLCY VERSION cLGN
            " (%s)",  crash_mode ? cPIN "peruvian were-rabbit" : 
@@ -114,7 +112,7 @@
  
    SAYF("\n%s\n\n", tmp);
  
-@@ -3948,6 +3961,8 @@
+@@ -3948,6 +3959,8 @@
         "  variable : %s%-10s " bSTG bV "\n", tmp, queued_variable ? cLRD : cNOR,
        no_var_check ? (u8*)"n/a" : DI(queued_variable));
  
@@ -123,7 +121,7 @@
    if (!bytes_trim_out) {
  
      sprintf(tmp, "n/a, ");
-@@ -3979,9 +3994,15 @@
+@@ -3979,9 +3992,15 @@
  
    }
  
@@ -140,7 +138,7 @@
    /* Provide some CPU utilization stats. */
  
    if (cpu_core_count) {
-@@ -6284,6 +6305,12 @@
+@@ -6284,6 +6303,12 @@
  
      if (sd_ent->d_name[0] == '.' || !strcmp(sync_id, sd_ent->d_name)) continue;
  
@@ -153,7 +151,7 @@
      /* Skip anything that doesn't have a queue/ subdirectory. */
  
      qd_path = alloc_printf("%s/%s/queue", sync_dir, sd_ent->d_name);
-@@ -6517,8 +6544,13 @@
+@@ -6517,8 +6542,13 @@
  
  #ifndef __APPLE__
  
@@ -168,7 +166,19 @@
  
  #else
  
-@@ -7166,7 +7198,7 @@
+@@ -6655,6 +6685,11 @@
+        "  -n            - fuzz without instrumentation (dumb mode)\n"
+        "  -x dir        - optional fuzzer dictionary (see README)\n\n"
+ 
++       "Driller options:\n\n"
++
++       "  -D file       - path to the drill script\n"
++       "  -q dir        - directory containing the driller qemu versions\n"
++
+        "Other stuff:\n\n"
+ 
+        "  -T text       - text banner to show on the screen\n"
+@@ -7166,7 +7201,7 @@
  static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
  
    char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
@@ -177,7 +187,7 @@
  
    memcpy(new_argv + 3, argv + 1, sizeof(char*) * argc);
  
-@@ -7177,9 +7209,17 @@
+@@ -7177,9 +7212,17 @@
  
    tmp = getenv("AFL_PATH");
  
@@ -196,7 +206,7 @@
  
      if (access(cp, X_OK))
        FATAL("Unable to find '%s'", tmp);
-@@ -7196,7 +7236,8 @@
+@@ -7196,7 +7239,8 @@
  
      *rsl = 0;
  
@@ -206,7 +216,7 @@
      ck_free(own_copy);
  
      if (!access(cp, X_OK)) {
-@@ -7208,9 +7249,11 @@
+@@ -7208,9 +7252,11 @@
  
    } else ck_free(own_copy);
  
@@ -220,7 +230,7 @@
      return new_argv;
  
    }
-@@ -7257,6 +7300,48 @@
+@@ -7257,6 +7303,48 @@
  
  }
  
@@ -269,7 +279,7 @@
  
  /* Main entry point */
  
-@@ -7274,7 +7359,7 @@
+@@ -7274,7 +7362,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -278,7 +288,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7378,22 @@
+@@ -7293,6 +7381,17 @@
          out_dir = optarg;
          break;
  
@@ -286,11 +296,6 @@
 +
 +        if (driller_path) FATAL("Multiple -D options not supported");
 +        driller_path = optarg;
-+        break;
-+
-+      case 'j': /* driller processes */
-+        
-+        driller_procs = optarg;
 +        break;
 +
 +      case 'q': /* driller qemu directory */
@@ -301,7 +306,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7571,7 @@
+@@ -7470,7 +7569,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -310,7 +315,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7588,7 @@
+@@ -7487,6 +7586,7 @@
  
    start_time = get_cur_time();
  
@@ -318,7 +323,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7659,20 @@
+@@ -7557,6 +7657,20 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
