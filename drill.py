@@ -79,10 +79,10 @@ def main(argv):
     sync_dir    = args.sync_dir
 
     for input_file in (d for d in os.listdir(in_dir) if not d.startswith('.')):
-        input_data = open(os.path.join(in_dir, input), 'rb').read()
+        input_data = open(os.path.join(in_dir, input_file), 'rb').read()
         driller.tasks.drill.delay(binary, input_data, out_dir, open(fuzz_bitmap, 'rb').read(), qemu_dir)
 
     return 0
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main(sys.argv[1:]))
