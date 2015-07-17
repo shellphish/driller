@@ -17,26 +17,15 @@ import subprocess
 import tempfile
 import time
 
-# shared objects for multiprocessing
-
-# lock for the catalogue file
-catalogue_lock = multiprocessing.RLock()
-
-# shared value for the output counter
-output_cnt     = multiprocessing.Value("L", 0, lock=True)
-
 class DrillerEnvironmentError(Exception):
     pass
 
 class DrillerMisfollowError(Exception):
     pass
 
-class DrillerConservativeStartup(Exception):
-    pass
-
 class Driller(object):
     '''
-    Driller object, can invoke many processes to trace inputs and drill into new state transitions.
+    Driller object, symbolically follows an input looking for new state transitions
     '''
 
     TRACED_FILE    = "traced"
@@ -48,7 +37,7 @@ class Driller(object):
     def __init__(self, binary, input, fuzz_bitmap, qemu_dir, redis=None):
         '''
         :param binary: the binary to be traced
-        :param input: input to feed to the binary
+        :param input: input string to feed to the binary
         :param fuzz_bitmap: AFL's bitmap of state transitions
         :param qemu_dir: path to driller qemu binaries
         :param redis: redis.Redis instance for coordinating multiple Driller instances
@@ -74,14 +63,11 @@ class Driller(object):
 
         l.info("drilling started on %s" % time.ctime(self.start_time))
 
+        self.fuzz_bitmap_size = len(self.fuzz_bitmap)
+
         # setup directories for the driller and perform sanity checks on the directory structure here
         if not self._sane():
             l.error("environment or parameters are unfit for a driller run")
-            raise DrillerEnvironmentError
-
-        # setup the output directory and special files for tracking
-        if not self._setup():
-            l.error("unable to setup environment for driller")
             raise DrillerEnvironmentError
 
         # basic block trace, initialized in .drill
@@ -187,36 +173,35 @@ class Driller(object):
             # don't re-trace the same input
             return 0
 
-        self.trace = self._trace()
-
-        self._drill_input(self.input)
-
         # update traced
         if self.redis:
             self.redis.sadd(self.binary + '-traced', self.input)
 
+        self.trace = self._trace()
+
+        self._drill_input()
+
         return len(self._generated)
 
-    def _drill_input(self, input_file):
+    def _drill_input(self):
         '''
         symbolically step down a path, choosing branches based off a dynamic trace we took earlier.
         if there's any branches (or state transitions really) which weren't taken by any of the inputs
         we concretize an input to reach those branches (or state transitions really).
-
-        :param input_file: input file which produces the path to drill to into
         '''
 
         # grab the dynamic basic block trace
         bb_trace = self.trace
 
-        l.debug("drilling into %r" % input_file)
-        l.debug("input %r has a basic block trace of %d addresses" % (input_file, len(bb_trace)))
+        l.debug("drilling into %r" % self.input)
+        l.debug("basic block trace consists of %d addresses" % len(bb_trace))
 
         project = angr.Project(self.binary)
+
         # apply special simprocedures
         self._set_simprocedures(project)
 
-        l.info("input is %r", self.input)
+        l.debug("input is %r", self.input)
 
         parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
 
@@ -262,13 +247,13 @@ class Driller(object):
 
                     transition = (bb_trace[bb_cnt-1], path.addr)
 
-                    l.info("found %x -> %x transition" % transition)
+                    l.debug("found %x -> %x transition" % transition)
 
                     if not hit and not self._has_encountered(transition):
                         if path.state.satisfiable():
                             # we writeout the new input as soon as possible to allow other AFL slaves
                             # to work with it
-                            l.info("found new cool thing!")
+                            l.debug("found new cool thing!")
                             self._writeout(bb_trace[bb_cnt-1], path)
                         else:
                             l.debug("couldn't dump input for %x -> %x" % transition)
