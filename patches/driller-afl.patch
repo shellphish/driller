@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-07-16 18:52:30.175043366 -0700
++++ afl-fuzz.c	2015-07-17 01:23:42.794632804 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -87,18 +87,6 @@
      u8* fn = alloc_printf("%s/%s", in_dir, nl[i]->d_name);
      u8* dfn = alloc_printf("%s/.state/deterministic_done/%s", in_dir, nl[i]->d_name);
  
-@@ -2252,9 +2265,9 @@
-   tb4 = *(u32*)trace_bits;
- 
- #ifdef __x86_64__
--  classify_counts((u64*)trace_bits);
-+  //classify_counts((u64*)trace_bits);
- #else
--  classify_counts((u32*)trace_bits);
-+  //classify_counts((u32*)trace_bits);
- #endif /* ^__x86_64__ */
- 
-   prev_timed_out = child_timed_out;
 @@ -2686,7 +2699,7 @@
  
  static void link_or_copy(u8* old_path, u8* new_path) {
@@ -342,7 +330,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7671,21 @@
+@@ -7557,6 +7671,20 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
@@ -357,7 +345,6 @@
 +        {
 +            invoke_driller(use_argv);
 +            cycles_wo_finds = 0;
-+            printf("\e[1;1H\e[2J"); // clear screen
 +        }
 +    } 
 +
