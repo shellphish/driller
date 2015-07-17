@@ -1,1 +1,3 @@
 termcolor
+redis
+celery
