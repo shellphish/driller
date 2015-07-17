@@ -143,8 +143,8 @@ else
 fi
 
 # now choose the mindless AFL slaves and the AFL slaves capable of invoking driller
-AFL_SLAVES=$(($AFL_THREADS / 2))
-DRILLER_SLAVES=$(($AFL_THREADS - $AFL_SLAVES))
+DRILLER_SLAVES=1
+AFL_SLAVES=$(($AFL_THREADS - $DRILLER_SLAVES))
 
 log_info "$DRILLER_SLAVES slaves will be able to invoke driller"
 
