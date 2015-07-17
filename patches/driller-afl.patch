@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-07-17 01:23:42.794632804 -0700
++++ afl-fuzz.c	2015-07-17 15:59:29.917713699 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -220,7 +220,7 @@
      return new_argv;
  
    }
-@@ -7257,6 +7300,60 @@
+@@ -7257,6 +7300,48 @@
  
  }
  
@@ -228,7 +228,7 @@
 +void invoke_driller(char **use_argv)
 +{
 +    pid_t driller_pid;
-+    char *argv[16];
++    char *argv[10];
 +    char *driller_out;
 +
 +    SAYF(cYEL "[!]" cRST " driller being invoked!\n");
@@ -247,23 +247,11 @@
 +    argv[2]  = target_binary_path;
 +    argv[3]  = "-i";
 +    argv[4]  = alloc_printf("%s/queue", out_dir);
-+    argv[5]  = "-o";
-+    argv[6]  = driller_out;
-+    argv[7]  = "-j";
-+    argv[8]  = driller_procs;
-+    argv[9]  = "-f";
-+    argv[10] = alloc_printf("%s/fuzz_bitmap", out_dir); 
-+    argv[11] = "-q";
-+    argv[12] = driller_qemu;
-+
-+
-+    if (sync_id)
-+    {
-+        argv[13] = "-s";
-+        argv[14] = sync_dir;
-+        argv[15] = NULL;
-+    } 
-+    else argv[13] = NULL;
++    argv[5]  = "-f";
++    argv[6] = alloc_printf("%s/fuzz_bitmap", out_dir); 
++    argv[7] = "-q";
++    argv[8] = driller_qemu;
++    argv[9] = NULL;
 +
 +
 +    driller_pid = fork();
@@ -281,7 +269,7 @@
  
  /* Main entry point */
  
-@@ -7274,7 +7371,7 @@
+@@ -7274,7 +7359,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -290,7 +278,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7390,22 @@
+@@ -7293,6 +7378,22 @@
          out_dir = optarg;
          break;
  
@@ -313,7 +301,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7583,7 @@
+@@ -7470,7 +7571,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -322,7 +310,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7600,7 @@
+@@ -7487,6 +7588,7 @@
  
    start_time = get_cur_time();
  
@@ -330,7 +318,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7671,20 @@
+@@ -7557,6 +7659,20 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
