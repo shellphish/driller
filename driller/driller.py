@@ -28,12 +28,6 @@ class Driller(object):
     Driller object, symbolically follows an input looking for new state transitions
     '''
 
-    TRACED_FILE    = "traced"
-    CATALOGUE_FILE = "driller_catalogue"
-    STATS_FILE     = "driller_stats"
-    ALIVE_FILE     = "alive"
-    SOLO_INTERVAL  = 60 * 15             # 15 minutes
-
     def __init__(self, binary, input, fuzz_bitmap, qemu_dir, redis=None):
         '''
         :param binary: the binary to be traced
