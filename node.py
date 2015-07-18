@@ -10,7 +10,7 @@ def main(argv):
         print "%s <n-workers>" % argv[0]
         return 1
 
-    n = int(argv[1])
+    n = argv[1]
 
     # verify that config.QEMU_DIR is sane
     if not os.path.isdir(config.QEMU_DIR):
