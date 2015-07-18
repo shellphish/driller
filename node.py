@@ -13,7 +13,7 @@ def main(argv):
     n = int(argv[1])
 
     # verify that config.QEMU_DIR is sane
-    if not os.isdir(config.QEMU_DIR):
+    if not os.path.isdir(config.QEMU_DIR):
         print "the qemu directory specified in the config is not a directory"
         return 1
 
