@@ -25,7 +25,7 @@ def terminate(signal, frame):
     sys.exit(0)
 
 def start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None, memory="8G",
-                driller=None, qemu_path=None):
+                driller=None):
 
     args = [afl_path]
 
@@ -46,9 +46,6 @@ def start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None, memor
     if driller is not None:
         args += ["-D", driller]
 
-    if qemu_path is not None:
-        args += ["-q", qemu_path]
-
     args += ["--", binary]
 
     l.debug("execing: %s > %s" % (' '.join(args), outfile))
@@ -64,11 +61,10 @@ def start_afl_slave(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None)
 
     return start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=dictionary)
 
-def start_afl_driller(afl_path, binary, in_dir, out_dir, fuzz_id, driller, qemu_path, 
-                dictionary=None):
+def start_afl_driller(afl_path, binary, in_dir, out_dir, fuzz_id, driller, dictionary=None):
 
     return start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=dictionary, 
-                driller=driller, qemu_path=qemu_path)
+                driller=driller)
 
 def clear_redis(identifier):
     redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
@@ -158,15 +154,12 @@ def main():
     afl_path      = os.path.join(base, "driller-afl-fuzz")
     # the AFL build path for afl-qemu-trace-*
     afl_path_var  = os.path.join(base, "build", "afl")
-    # path to the qemu binaries
-    qemu_path     = os.path.join(base, "driller-qemu")
     # path to the drill script
     driller_path  = os.path.join(base, "drill.py")
     # redis channel id
     channel_id    = os.path.basename(binary_path)
 
     l.debug("afl_path: %s" % afl_path)
-    l.debug("qemu_path: %s" % qemu_path)
     l.debug("driller_path: %s" % driller_path)
     l.debug("AFL_PATH_ENV: %s" % afl_path_var)
     l.debug("channel_id: %s" % channel_id) 
@@ -183,7 +176,7 @@ def main():
     procs.append(start_afl_master(afl_path, binary_path, in_dir, out_dir))
 
     if afl_count > 1:
-        procs.append(start_afl_driller(afl_path, binary_path, in_dir, out_dir, 1, driller_path, qemu_path))
+        procs.append(start_afl_driller(afl_path, binary_path, in_dir, out_dir, 1, driller_path))
     else:
         l.warning("only one AFL instance was chosen to be spun up, driller will never be invoked")
 
