@@ -44,6 +44,8 @@ class Driller(object):
         '''
 
         self.binary      = binary
+        # redis channel identifier
+        self.identifier  = os.path.basename(binary)
         self.input       = input
         self.fuzz_bitmap = fuzz_bitmap
         self.qemu_dir    = qemu_dir
@@ -169,13 +171,13 @@ class Driller(object):
         perform the drilling, finding more code coverage based off our existing input base.
         '''
 
-        if self.redis and self.redis.sismember(self.binary + '-traced', self.input):
+        if self.redis and self.redis.sismember(self.identifier + '-traced', self.input):
             # don't re-trace the same input
             return 0
 
         # update traced
         if self.redis:
-            self.redis.sadd(self.binary + '-traced', self.input)
+            self.redis.sadd(self.identifier + '-traced', self.input)
 
         self.trace = self._trace()
 
@@ -326,7 +328,7 @@ class Driller(object):
         key = '%x,%x,%x\n' % (length, prev_addr, next_addr)
 
         if self.redis:
-            return self.redis.sismember(self.binary + '-catalogue', key)
+            return self.redis.sismember(self.identifier + '-catalogue', key)
         else:
             # no redis means no coordination, so no catalogue
             return False
@@ -334,7 +336,7 @@ class Driller(object):
     def _add_to_catalogue(self, length, prev_addr, next_addr):
         if self.redis:
             key = '%x,%x,%x\n' % (length, prev_addr, next_addr)
-            self.redis.sadd(self.binary + '-catalogue', key)
+            self.redis.sadd(self.identifier + '-catalogue', key)
         # no redis = no catalogue
 
     def _writeout(self, prev_addr, path):
@@ -355,6 +357,6 @@ class Driller(object):
 
         if self.redis:
             # publish it out in real-time so that inputs get there immediately
-            channel = self.binary + '-generated'
+            channel = self.identifier + '-generated'
 
             self.redis.publish(channel, pickle.dumps({'meta': key, 'data': generated}))
