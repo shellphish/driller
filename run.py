@@ -45,6 +45,9 @@ def start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None, memor
     if driller is not None:
         args += ["-D", driller]
 
+    if qemu_path is not None:
+        args += ["-q", qemu_path]
+
     args += ["--", binary]
 
     l.debug("execing: %s > %s" % (' '.join(args), outfile))
@@ -77,6 +80,12 @@ def clear_redis(identifier):
 
 def listen(queue_dir, channel):
     l.info("subscring to redis channel %s" % channel)
+    l.info("new inputs will be placed into %s" % queue_dir)
+
+    try:
+        os.makedirs(queue_dir)
+    except OSError:
+        l.warning("could not create output directory '%s'" % queue_dir)
 
     redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
     p = redis_inst.pubsub()
