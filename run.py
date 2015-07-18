@@ -8,6 +8,7 @@ import subprocess
 import signal
 import sys
 import multiprocessing
+import cPickle as pickle
 
 import driller.config as config
 
