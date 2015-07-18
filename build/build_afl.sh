@@ -8,17 +8,18 @@ popd >/dev/null
 cd $BUILD_DIR
 
 # require afl 1.83b
-AFL_URL="http://lcamtuf.coredump.cx/afl/releases/afl-1.83b.tgz"
+VERS="1.83b"
+AFL_URL="http://lcamtuf.coredump.cx/afl/releases/afl-$VERS.tgz"
 
 ARCHIVE="`basename -- "$AFL_URL"`"
 
 wget -O "$ARCHIVE" -- "$AFL_URL" || exit 1
 
-rm -rf "afl-1.83b" || exit 1
+rm -rf "afl-$VERS" || exit 1
 tar xf "$ARCHIVE" || exit 1
 
 # apply the driller patch
-cd afl-1.83b
+cd afl-$VERS
 
 patch afl-fuzz.c < ../../patches/driller-afl.patch
 patch qemu_mode/build_qemu_support.sh < ../../patches/driller-afl-qemu-mode.patch
@@ -29,5 +30,8 @@ cd qemu_mode
 cd ..
 
 cp afl-fuzz ../../driller-afl-fuzz
+
+cd ..
+ln -s afl-$VERS afl
 
 echo "All done!"
