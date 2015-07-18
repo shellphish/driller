@@ -23,10 +23,7 @@ def main(argv):
 
     args = ["celery", "-A", "driller.tasks", "worker", "-c", n, "--loglevel=info"]
 
-    os.execv(args[0], args)
-
-
-
+    os.execvp(args[0], args)
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
