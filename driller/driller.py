@@ -226,6 +226,10 @@ class Driller(object):
             if len(trace_group.stashes['unconstrained']):
                 l.info("%d unconstrained paths spotted!" % len(trace_group.stashes['unconstrained']))
 
+            # check here to see if a crash has been found
+            if self.redis and self.redis.sismember(self.identifier + "-crash-found", True):
+                return
+
             # move the transition which the dynamic trace didn't encounter to the 'missed' stash
             trace_group.stash_not_addr(next_move, to_stash='missed')
 

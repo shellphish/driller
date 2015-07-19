@@ -203,6 +203,15 @@ def clear_redis(identifier):
     # delete all the traced entries
     redis_inst.delete("%s-traced" % identifier)
 
+    # delete all the crash-found entry
+    redis_inst.delete("%s-crash-found" % identifier)
+
+def report_crash_found(identifier):
+    redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
+
+    # add True as a member
+    redis_inst.sadd(indentifier + "-crash-found", True)
+
 def listen(queue_dir, channel):
     l.info("subscring to redis channel %s" % channel)
     l.info("new inputs will be placed into %s" % queue_dir)
@@ -304,6 +313,8 @@ def show_afl_stats(sync_dir):
     print
     print "=" * 40
 
+    return crashes
+
 def main():
     global procs
     global start_time
@@ -392,10 +403,13 @@ def main():
     # setup signal handler
     signal.signal(signal.SIGINT, terminate)
 
-    while True:
-        raw_input("")
-        show_afl_stats(out_dir)
+    crash_found = False
+    while not crash_found:
+        time.sleep(config.CRASH_CHECK_INTERVAL)
+        crash_found = bool(show_afl_stats(out_dir))
 
+    report_crash_found(identifier)
+    terminate()
 
 if __name__ == "__main__":
     main()
