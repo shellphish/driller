@@ -116,6 +116,7 @@ class Driller(object):
 
         # generate a logfile for the trace, will be thrown away shortly
         logfd, logfile = tempfile.mkstemp(prefix="driller-trace-", dir="/dev/shm/")
+        os.close(logfd)
 
         # args to Popen
         args = [qemu_path]
