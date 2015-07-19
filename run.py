@@ -20,7 +20,7 @@ import string
 import logging
 
 l = logging.getLogger("run")
-l.setLevel("DEBUG")
+l.setLevel("INFO")
 
 # global list of processes so we can kill them on SIGINT
 procs = [ ] 
@@ -48,7 +48,7 @@ def hexescape(s):
 
 def create_dict(binary, outfile):
     b = angr.Project(binary)
-    cfg = b.analyses.CFG(keep_input_state=True)
+    cfg = b.analyses.CFG(keep_input_state=True, enable_advanced_backward_slicing=True)
 
     string_references = [ ]
     for f in cfg.function_manager.functions.values():
@@ -77,8 +77,8 @@ def terminates_on_eof(qemu_dir, binary):
 
     # detect the binary type
     b = angr.Project(binary)
-    ld_arch = b.ld.main_bin.arch
-    ld_type = b.ld.main_bin.filetype
+    ld_arch = b.loader.main_bin.arch
+    ld_type = b.loader.main_bin.filetype
 
     if ld_type == "cgc":
         arch = "cgc"
