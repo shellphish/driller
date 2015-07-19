@@ -13,13 +13,14 @@ import sys
 import multiprocessing
 import cPickle as pickle
 import time
+import tempfile
 import termcolor
 import string
 
 import logging
 
 l = logging.getLogger("run")
-l.setLevel("INFO")
+l.setLevel("DEBUG")
 
 # global list of processes so we can kill them on SIGINT
 procs = [ ] 
@@ -60,17 +61,68 @@ def create_dict(binary, outfile):
 
     strings = [] if len(string_references) == 0 else zip(*string_references)[1]
 
-    with open(outfile, 'wb') as f:
-        for i, string in enumerate(strings):
-            s = hexescape(string)
-            f.write("driller_%d=\"%s\"\n" % (i, s))
+    if len(strings) > 0:
+        with open(outfile, 'wb') as f:
+            for i, string in enumerate(strings):
+                s = hexescape(string)
+                f.write("driller_%d=\"%s\"\n" % (i, s))
 
-    return 0
+        return True
+
+    return False
+
+### BEHAVIOR TESTING
+def terminates_on_eof(qemu_dir, binary):
+    l.info("attempting to detect if the binary doesn't terminate on EOF")
+
+    # detect the binary type
+    b = angr.Project(binary)
+    ld_arch = b.ld.main_bin.arch
+    ld_type = b.ld.main_bin.filetype
+
+    if ld_type == "cgc":
+        arch = "cgc"
+
+    elif ld_type == "elf":
+        if ld_arch == archinfo.arch_amd64.ArchAMD64:
+            arch = "x86_64"
+        if ld_arch == archinfo.arch_x86.ArchX86:
+            arch = "i386"
+
+    else:
+        l.error("binary is of an unsupported architecture")
+        raise NotImplementedError
+
+    qemu_path = os.path.join(qemu_dir, "driller-qemu-%s" % arch)
+    if not os.access(qemu_path, os.X_OK):
+        l.error("either qemu does not exist in config.QEMU_DIR or it is not executable")
+        return True
+
+    # create a dumb test input 
+    fd, tinput = tempfile.mkstemp()
+    os.close(fd)
+
+    with open(tinput, 'wb') as f:
+        f.write("fuzz")
+
+    with open(tinput, 'rb') as i:
+        with open('/dev/null', 'w') as o:
+            args = [qemu_path, binary]
+            p = subprocess.Popen(args, stdin=i, stdout=o)
+
+            time.sleep(2) # generously give the binary two seconds to terminate
+
+            if p.poll() is None: # it doesn't seem to terminate on EOF
+                p.terminate()
+                return False
+            
+    # good, it terminates on EOF, no monkey business
+    return True
 
 ### AFL SPAWNERS
 
-def start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None, memory="8G",
-                driller=None):
+def start_afl_instance(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None, memory="8G",
+                driller=None, eof_termination=False):
 
     args = [afl_path]
 
@@ -91,6 +143,9 @@ def start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None, memor
     if driller is not None:
         args += ["-D", driller]
 
+    if eof_termination:
+        args += ["-E"]
+
     args += ["--", binary]
 
     l.debug("execing: %s > %s" % (' '.join(args), outfile))
@@ -98,18 +153,44 @@ def start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None, memor
     fp = open(outfile, "w")
     return subprocess.Popen(args, stdout=fp)
 
-def start_afl_master(afl_path, binary, in_dir, out_dir, dictionary=None):
+def start_afl(afl_path, binary_path, in_dir, out_dir, afl_count, driller_path, dictionary, eof_exit):
+    global procs
 
-    return start_afl(afl_path, binary, in_dir, out_dir, fuzz_id=0, dictionary=dictionary)
+    # spin up the master AFL instance
+    master = start_afl_instance(afl_path, 
+                                binary_path,
+                                in_dir,
+                                out_dir,
+                                fuzz_id=0, # the master fuzzer
+                                dictionary=dictionary,
+                                eof_termination=eof_exit)
+    procs.append(master)
 
-def start_afl_slave(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None):
+    if afl_count > 1:
+        driller = start_afl_instance(afl_path,
+                                     binary_path,
+                                     in_dir, 
+                                     out_dir, 
+                                     1,
+                                     driller=driller_path,
+                                     dictionary=dictionary,
+                                     eof_termination=eof_exit)
+        procs.append(driller)
 
-    return start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=dictionary)
+    else:
+        l.warning("only one AFL instance was chosen to be spun up, driller will never be invoked")
 
-def start_afl_driller(afl_path, binary, in_dir, out_dir, fuzz_id, driller, dictionary=None):
+    # only spins up an AFL instances if afl_count > 1
+    for n in range(2, afl_count):
+        slave = start_afl_instance(afl_path, 
+                                binary_path,
+                                in_dir,
+                                out_dir,
+                                n,
+                                dictionary=dictionary,
+                                eof_termination=eof_exit)
 
-    return start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=dictionary, 
-                driller=driller)
+        procs.append(slave)
 
 ### BACKEND HANDLERS
 
@@ -270,6 +351,8 @@ def main():
     afl_path_var  = os.path.join(base, "build", "afl")
     # path to the drill script
     driller_path  = os.path.join(base, "drill.py")
+    # driller-qemu
+    qemu_dir      = os.path.join(base, config.QEMU_DIR)
     # redis channel id
     channel_id    = os.path.basename(binary_path)
     # afl dictionary
@@ -286,24 +369,22 @@ def main():
     # look for a dictionary, if one doesn't exist create it with angr
     if not os.path.isfile(dict_file):
         l.info("creating a dictionary of string references found in the binary")
-        create_dict(binary_path, dict_file)
+        if not create_dict(binary_path, dict_file):
+            l.warning("failed to create dictionary, this can really impede on AFL's progress")
+            dict_file = None
 
     # set environment variable for the AFL_PATH
     os.environ['AFL_PATH'] = afl_path_var
 
-    # spin up the master AFL instance
-    procs.append(start_afl_master(afl_path, binary_path, in_dir, out_dir, dictionary=dict_file))
+    eof_exit = False
+    # test if the binary terminates on EOF
+    if not terminates_on_eof(qemu_dir, binary_path):
+        l.warning("binary doesn't terminate on EOF! attempting to use hack to fix this")
+        eof_exit = True
 
-    if afl_count > 1:
-        procs.append(start_afl_driller(afl_path, binary_path, in_dir, out_dir, 1, driller_path, 
-                        dictionary=dict_file))
-    else:
-        l.warning("only one AFL instance was chosen to be spun up, driller will never be invoked")
-
-    # only spins up an AFL instances if afl_count > 1
-    for n in range(2, afl_count):
-        procs.append(start_afl_slave(afl_path, binary_path, in_dir, out_dir, n, 
-                    dictionary=dict_file))
+    # spin up the AFL guys
+    start_afl(afl_path, binary_path, in_dir, out_dir, afl_count, 
+            dictionary=dict_file, driller_path=driller_path, eof_exit=eof_exit)
 
     # spin up the redis listener
     procs.append(start_redis_listener(channel_id, out_dir))
