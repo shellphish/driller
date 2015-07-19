@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import angr
+import driller.config as config
+
 import argparse
 import redis
 import driller.tasks
@@ -11,8 +14,7 @@ import multiprocessing
 import cPickle as pickle
 import time
 import termcolor
-
-import driller.config as config
+import string
 
 import logging
 
@@ -24,9 +26,48 @@ procs = [ ]
 
 start_time = 0
 
+### EXIT HANDLERS
+
 def terminate(signal, frame):
     map(lambda p: p.terminate(), procs)
     sys.exit(0)
+
+### DICTIONARY CREATION
+
+def hexescape(s):
+    out = [ ]
+    acceptable = string.letters + string.digits + " ."
+    for c in s:
+        if c not in acceptable:
+            out.append("\\x%02x" % ord(c))
+        else:
+            out.append(c)
+
+    return ''.join(out)
+
+def create_dict(binary, outfile):
+    b = angr.Project(binary)
+    cfg = b.analyses.CFG(keep_input_state=True)
+
+    string_references = [ ]
+    for f in cfg.function_manager.functions.values():
+        try:
+            string_references.append(f.string_references())
+        except ZeroDivisionError:
+            pass
+
+    string_references = sum(string_references, [])
+
+    strings = [] if len(string_references) == 0 else zip(*string_references)[1]
+
+    with open(outfile, 'wb') as f:
+        for i, string in enumerate(strings):
+            s = hexescape(string)
+            f.write("driller_%d=\"%s\"\n" % (i, s))
+
+    return 0
+
+### AFL SPAWNERS
 
 def start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None, memory="8G",
                 driller=None):
@@ -69,6 +110,8 @@ def start_afl_driller(afl_path, binary, in_dir, out_dir, fuzz_id, driller, dicti
 
     return start_afl(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=dictionary, 
                 driller=driller)
+
+### BACKEND HANDLERS
 
 def clear_redis(identifier):
     redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
@@ -115,6 +158,8 @@ def start_redis_listener(identifier, out_dir):
     p = multiprocessing.Process(target=listen, args=(driller_queue_dir, channel,))
     p.start()
     return p
+
+### STATS
 
 def show_afl_stats(sync_dir):
     global start_time
@@ -227,6 +272,8 @@ def main():
     driller_path  = os.path.join(base, "drill.py")
     # redis channel id
     channel_id    = os.path.basename(binary_path)
+    # afl dictionary
+    dict_file     = "%s.dict" % channel_id
 
     l.debug("afl_path: %s" % afl_path)
     l.debug("driller_path: %s" % driller_path)
@@ -237,21 +284,26 @@ def main():
     clear_redis(channel_id)
 
     # look for a dictionary, if one doesn't exist create it with angr
+    if not os.path.isfile(dict_file):
+        l.info("creating a dictionary of string references found in the binary")
+        create_dict(binary_path, dict_file)
 
     # set environment variable for the AFL_PATH
     os.environ['AFL_PATH'] = afl_path_var
 
     # spin up the master AFL instance
-    procs.append(start_afl_master(afl_path, binary_path, in_dir, out_dir))
+    procs.append(start_afl_master(afl_path, binary_path, in_dir, out_dir, dictionary=dict_file))
 
     if afl_count > 1:
-        procs.append(start_afl_driller(afl_path, binary_path, in_dir, out_dir, 1, driller_path))
+        procs.append(start_afl_driller(afl_path, binary_path, in_dir, out_dir, 1, driller_path, 
+                        dictionary=dict_file))
     else:
         l.warning("only one AFL instance was chosen to be spun up, driller will never be invoked")
 
     # only spins up an AFL instances if afl_count > 1
     for n in range(2, afl_count):
-        procs.append(start_afl_slave(afl_path, binary_path, in_dir, out_dir, n))
+        procs.append(start_afl_slave(afl_path, binary_path, in_dir, out_dir, n, 
+                    dictionary=dict_file))
 
     # spin up the redis listener
     procs.append(start_redis_listener(channel_id, out_dir))
