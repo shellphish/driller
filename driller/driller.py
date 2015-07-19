@@ -28,13 +28,15 @@ class Driller(object):
     Driller object, symbolically follows an input looking for new state transitions
     '''
 
-    def __init__(self, binary, input, fuzz_bitmap, qemu_dir, redis=None):
+    def __init__(self, binary, input, fuzz_bitmap, qemu_dir, redis=None, exit_on_eof=False):
         '''
         :param binary: the binary to be traced
         :param input: input string to feed to the binary
         :param fuzz_bitmap: AFL's bitmap of state transitions
         :param qemu_dir: path to driller qemu binaries
         :param redis: redis.Redis instance for coordinating multiple Driller instances
+        :param exit_on_eof: whether QEMU should exit if EOF is received, used for tracing binaries
+                            which don't exit themselves
         '''
 
         self.binary      = binary
@@ -44,6 +46,7 @@ class Driller(object):
         self.fuzz_bitmap = fuzz_bitmap
         self.qemu_dir    = qemu_dir
         self.redis       = redis
+        self.exit_on_eof = exit_on_eof
 
         # set of the files which have already been traced
         self.traced           = set()
@@ -115,7 +118,10 @@ class Driller(object):
         logfd, logfile = tempfile.mkstemp(prefix="driller-trace-", dir="/dev/shm/")
 
         # args to Popen
-        args = [qemu_path, "-d", "exec", "-D", logfile, self.binary]
+        args = [qemu_path]
+        if self.exit_on_eof:
+            args += ["-eof-exit"]
+        args += ["-d", "exec", "-D", logfile, self.binary]
 
         with open('/dev/null', 'wb') as devnull:
             # run QEMU with the input file as stdin
