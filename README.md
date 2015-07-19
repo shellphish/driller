@@ -4,12 +4,17 @@
 This will mostly create custom QEMU versions for AFL and driller and install python packages
 
 ### Run
-    * cd <challenge-binary>
-    # driller must be on the PYTHONPATH and N is the number of workers
-    * celery -A driller.tasks worker -c N --loglevel=info 
-    * python ../listen.py -o <sync_dir>/driller <challenge-binary>
+    ## On the driller node
+        * in driller/config.py update 
+            * the BROKER_URL to use the correct credential rabbitmq expects
+            * the BINARY_PATH to point to a directory containing the challenge binaries
+        * run `node.py` with the number of workers to create
 
-    this will all be replaced with a nice script soon 
+    ## On the fuzzer node
+        * in driller/config.py update
+            * the BROKER_URL to point to the driller node and use the correct credentials
+            * the REDIS_* settings 
+        * run `run.py` with the binary, input directory, output directory and number of fuzzers
 
 ### Dependencies
     * celery
