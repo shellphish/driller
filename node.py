@@ -21,6 +21,15 @@ def main(argv):
         print "the qemu directory does not contain any file by the name of 'driller-qemu-cgc'"
         return 1
 
+    # verify that config.BINARY_DIR contains some binaries
+    if not os.path.isdir(config.BINARY_DIR):
+        print "the binary directory specified in the config is not a directory"
+        return 1
+
+    if not any(filter(lambda x: os.access(x, os.X_OK), os.listdir(config.BINARY_DIR))):
+        print "no binary files detected in binary directory specified, failing fast"
+        return 1
+
     args = ["celery", "-A", "driller.tasks", "worker", "-c", n, "--loglevel=info"]
 
     os.execvp(args[0], args)
