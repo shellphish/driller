@@ -206,10 +206,10 @@ class Driller(object):
 
         l.debug("input is %r", self.input)
 
-        parent_path = project.path_generator.entry_point(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+        parent_path = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
 
         # TODO: detect unconstrained paths
-        trace_group = project.path_group(immutable=False, save_unconstrained=True, paths=[parent_path])
+        trace_group = project.path_group(parent_path, immutable=False, save_unconstrained=True)
 
         # used for following the dynamic trace
         bb_cnt = 0
