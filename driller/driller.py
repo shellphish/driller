@@ -146,8 +146,8 @@ class Driller(object):
 
         # temporary angr project for getting loader options
         p = angr.Project(self.binary)
-        ld_arch = p.ld.main_bin.arch
-        ld_type = p.ld.main_bin.filetype
+        ld_arch = p.loader.main_bin.arch
+        ld_type = p.loader.main_bin.filetype
 
         # what's the binary's format?
         if ld_type == "cgc":
