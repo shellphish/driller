@@ -9,16 +9,20 @@ import signal
 import sys
 import multiprocessing
 import cPickle as pickle
+import time
+import termcolor
 
 import driller.config as config
 
 import logging
 
 l = logging.getLogger("run")
-l.setLevel("DEBUG")
+l.setLevel("INFO")
 
 # global list of processes so we can kill them on SIGINT
 procs = [ ] 
+
+start_time = 0
 
 def terminate(signal, frame):
     map(lambda p: p.terminate(), procs)
@@ -112,8 +116,71 @@ def start_redis_listener(identifier, out_dir):
     p.start()
     return p
 
+def show_afl_stats(sync_dir):
+    global start_time
+
+    stats = {}
+    checktime = time.time()
+
+    driller_inputs = 0
+    # collect stats into dictionary
+    for fuzzer_dir in os.listdir(sync_dir):
+        stat_path = os.path.join(sync_dir, fuzzer_dir, "fuzzer_stats")
+        if os.path.isfile(stat_path):
+            stats[fuzzer_dir] = {}
+
+            stat_blob = open(stat_path, "rb").read()
+            stat_lines = stat_blob.split("\n")[:-1]
+            for stat in stat_lines:
+                key, val = stat.split(":")
+                stats[fuzzer_dir][key.strip()] = val
+
+        else: # could be driller
+            if fuzzer_dir == "driller":
+                drilled_inputs = len(os.listdir(os.path.join(sync_dir, fuzzer_dir, "queue")))
+
+    pending_total = 0
+    pending_favs  = 0
+    execs_done = 0
+    total_time = 0
+    alive_cnt = 0
+    crashes = 0
+    for fuzzer in stats:
+        # is the fuzzer alive
+        fuzz_pid = int(stats[fuzzer]['fuzzer_pid'])
+        try:
+            os.kill(fuzz_pid, 0)
+            alive_cnt += 1
+        except OSError:
+            continue
+
+        time_running   = checktime - int(stats[fuzzer]['start_time'])
+        total_time    += time_running
+        pending_total += int(stats[fuzzer]['pending_total'])
+        pending_favs  += int(stats[fuzzer]['pending_favs'])
+        execs_done    += int(stats[fuzzer]['execs_done'])
+        crashes       += int(stats[fuzzer]['unique_crashes'])
+
+    m, s = divmod(checktime - start_time, 60)
+    h, m = divmod(m, 60)
+    print "  Run time           : %d:%02d:%02d" % (h, m, s)
+    print "  Fuzzers Alive      : %d alive" % alive_cnt
+    print "  Pending paths      : %d faves, %d total" % (pending_favs, pending_total)
+    print "  Pending per fuzzer : %d faves, %d total" % (pending_favs / alive_cnt, pending_total / alive_cnt)
+    print "  Cumulative speed   : %d execs/sec" % int((execs_done * alive_cnt) / total_time)
+    print "  Drilled inputs     : %d inputs" % drilled_inputs
+
+    cstr = "%d" % crashes
+    if crashes > 0:
+        cstr = termcolor.colored(cstr, "red", attrs=["bold"])
+
+    print "  Crashes            : %s crashes" % cstr
+    print
+    print "=" * 40
+
 def main():
     global procs
+    global start_time
 
     parser = argparse.ArgumentParser(description="Driller")
 
@@ -150,6 +217,8 @@ def main():
     out_dir      = args.out_dir
     afl_count    = args.afl_count
 
+    # start time
+    start_time    = time.time()
     # the path to AFL capable of calling driller
     afl_path      = os.path.join(base, "driller-afl-fuzz")
     # the AFL build path for afl-qemu-trace-*
@@ -192,7 +261,7 @@ def main():
 
     while True:
         raw_input("")
-        # show_afl_stats(out_dir)
+        show_afl_stats(out_dir)
 
 
 if __name__ == "__main__":
