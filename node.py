@@ -4,6 +4,10 @@ import driller.config as config
 import os
 import sys
 
+def check_exec(d, p):
+    path = os.path.join(d, p)
+    return not os.path.isdir(path) and os.access(path, os.X_OK)
+
 def main(argv):
 
     if len(argv) < 2:
@@ -26,7 +30,7 @@ def main(argv):
         print "the binary directory specified in the config is not a directory"
         return 1
 
-    if not any(filter(lambda x: os.access(x, os.X_OK), os.listdir(config.BINARY_DIR))):
+    if not any(filter(lambda x: check_exec(config.BINARY_DIR, x), os.listdir(config.BINARY_DIR))):
         print "no binary files detected in binary directory specified, failing fast"
         return 1
 
