@@ -67,8 +67,10 @@ def create_dict(binary, outfile):
     if len(strings) > 0:
         with open(outfile, 'wb') as f:
             for i, string in enumerate(strings):
-                s = hexescape(string)
-                f.write("driller_%d=\"%s\"\n" % (i, s))
+                # AFL has a limit of 128 bytes per dictionary entries
+                if len(string) <= 128:
+                    s = hexescape(string)
+                    f.write("driller_%d=\"%s\"\n" % (i, s))
 
         return True
 
@@ -274,11 +276,12 @@ def show_afl_stats(sync_dir):
         if os.path.isfile(stat_path):
             stats[fuzzer_dir] = {}
 
-            stat_blob = open(stat_path, "rb").read()
-            stat_lines = stat_blob.split("\n")[:-1]
-            for stat in stat_lines:
-                key, val = stat.split(":")
-                stats[fuzzer_dir][key.strip()] = val
+            with open(stat_path, "rb") as f:
+                stat_blob = f.read()
+                stat_lines = stat_blob.split("\n")[:-1]
+                for stat in stat_lines:
+                    key, val = stat.split(":")
+                    stats[fuzzer_dir][key.strip()] = val
 
         else: # could be driller
             if fuzzer_dir == "driller":
@@ -308,6 +311,7 @@ def show_afl_stats(sync_dir):
 
     m, s = divmod(checktime - start_time, 60)
     h, m = divmod(m, 60)
+    print "=" * 40
     print "  Run time           : %d:%02d:%02d" % (h, m, s)
     print "  Fuzzers Alive      : %d alive" % alive_cnt
     print "  Pending paths      : %d faves, %d total" % (pending_favs, pending_total)
@@ -320,8 +324,7 @@ def show_afl_stats(sync_dir):
         cstr = termcolor.colored(cstr, "red", attrs=["bold"])
 
     print "  Crashes            : %s crashes" % cstr
-    print
-    print "=" * 40
+    sys.stdout.flush()
 
     return crashes
 
