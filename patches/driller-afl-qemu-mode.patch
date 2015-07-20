@@ -1,5 +1,11 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/qemu_mode/build_qemu_support.sh	2015-04-29 20:34:59.000000000 -0700
-+++ build_qemu_support.sh	2015-07-12 22:01:28.223530410 -0700
++++ build_qemu_support.sh	2015-07-20 16:25:11.133153055 -0700
+@@ -1,4 +1,4 @@
+-#!/bin/sh
++#!/bin/bash
+ #
+ # american fuzzy lop - QEMU build script
+ # --------------------------------------
 @@ -139,7 +139,7 @@
  
  echo "[*] Attempting to build QEMU (fingers crossed!)..."
@@ -9,7 +15,7 @@
  
  echo "[+] Build process successful!"
  
-@@ -150,37 +150,80 @@
+@@ -150,37 +150,85 @@
  cd ..
  ls -l ../afl-qemu-trace || exit 1
  
@@ -44,9 +50,11 @@
 +#fi
 +#
 +#echo "[+] Instrumentation tests passed. "
-+
+ 
+-echo "[*] Testing the build..."
 +echo "[+] Building CGC qemu!"
-+
+ 
+-cd ..
 +QEMU_DIR=qemu-cgc-afl
 +rm -rf $QEMU_DIR
 +echo "[*] Cloning our QEMU repository..."
@@ -55,51 +63,52 @@
 +git -C $QEMU_DIR checkout afl || exit 1
 +git -C $QEMU_DIR pull || exit 1
 +echo "[+] Checked out."
-+
-+echo "[*] Attempting to merge in driller's changes"
-+
-+# we have to do this for the merge to work, the changes in base driller should probably 
-+# just be merged into AFL
-+git config --global user.name "driller"
-+git config --global user.email "driller@example.com"
-+
-+git -C $QEMU_DIR merge origin/base_driller -m "Merge it!" || exit 1
  
--echo "[*] Testing the build..."
-+echo "[*] Configuring QEMU..."
- 
--cd ..
--
 -make >/dev/null || exit 1
-+cd $QEMU_DIR || exit 1
++echo "[*] Attempting to merge in driller's changes"
  
 -gcc test-instr.c -o test-instr || exit 1
-+./cgc_configure_opt
++# we have to do this for the merge to work, the changes in base driller should probably 
++# just be merged into AFL
++if [[ $(git config user.name) == "" ]]; then
++    git config --global user.name "driller"
++fi
  
 -unset AFL_INST_RATIO
-+echo "[+] Configuration complete."
++if [[ $(git config user.email) == "" ]]; then
++    git config --global user.email "driller@example.com"
++fi
  
 -echo 0 | ./afl-showmap -m none -Q -q -o .test-instr0 ./test-instr || exit 1
 -echo 1 | ./afl-showmap -m none -Q -q -o .test-instr1 ./test-instr || exit 1
--
++git -C $QEMU_DIR merge origin/base_driller -m "Merge it!" || exit 1
+ 
 -rm -f test-instr
-+echo "[*] Attempting to build QEMU (fingers crossed!)..."
++echo "[*] Configuring QEMU..."
  
 -cmp -s .test-instr0 .test-instr1
 -DR="$?"
-+make -j || exit 1
++cd $QEMU_DIR || exit 1
  
 -rm -f .test-instr0 .test-instr1
-+echo "[+] Build process successful!"
++./cgc_configure_opt
  
 -if [ "$DR" = "0" ]; then
-+echo "[*] Copying binary..."
++echo "[+] Configuration complete."
  
 -  echo "[-] Error: afl-qemu-trace instrumentation doesn't seem to work!"
 -  exit 1
-+cp -f "i386-linux-user/qemu-i386" "../../afl-qemu-trace-cgc" || exit 1
++echo "[*] Attempting to build QEMU (fingers crossed!)..."
  
 -fi
++make -j || exit 1
++
++echo "[+] Build process successful!"
++
++echo "[*] Copying binary..."
++
++cp -f "i386-linux-user/qemu-i386" "../../afl-qemu-trace-cgc" || exit 1
++
 +cd ..
 +ls -l ../afl-qemu-trace-cgc || exit 1
  
