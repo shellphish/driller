@@ -117,8 +117,10 @@ def terminates_on_eof(qemu_dir, binary):
 
             if p.poll() is None: # it doesn't seem to terminate on EOF
                 p.terminate()
+                os.remove(tinput)
                 return False
             
+    os.remove(tinput)
     # good, it terminates on EOF, no monkey business
     return True
 
