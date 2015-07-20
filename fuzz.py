@@ -19,7 +19,7 @@ import string
 
 import logging
 
-l = logging.getLogger("run")
+l = logging.getLogger("fuzz")
 l.setLevel("INFO")
 
 # global list of processes so we can kill them on SIGINT
@@ -315,44 +315,11 @@ def show_afl_stats(sync_dir):
 
     return crashes
 
-def main():
+def start(binary_path, in_dir, out_dir, afl_count):
     global procs
     global start_time
 
-    parser = argparse.ArgumentParser(description="Driller")
-
     base = os.path.dirname(__file__)
-
-    parser.add_argument("-b", dest="binary",
-                        type=str,
-                        metavar="<binary>",
-                        help="binary executable to drill",
-                        required=True)
-
-    parser.add_argument("-i", dest="in_dir",
-                        type=str,
-                        metavar="<in_dir>",
-                        help="input directory",
-                        required=True)
-
-    parser.add_argument("-o", dest="out_dir",
-                        type=str,
-                        metavar="<out_dir>",
-                        help="output directory",
-                        required=True)
-
-    parser.add_argument("-n", dest="afl_count",
-                        type=int,
-                        metavar="<afl_count>" ,
-                        help="number of AFL instances to use",
-                        required=True)
-
-    args = parser.parse_args()
-
-    binary_path  = args.binary
-    in_dir       = args.in_dir
-    out_dir      = args.out_dir
-    afl_count    = args.afl_count
 
     # start time
     start_time    = time.time()
@@ -412,6 +379,43 @@ def main():
     terminate()
 
     return 0
+
+def main():
+
+    parser = argparse.ArgumentParser(description="Driller")
+
+    parser.add_argument("-b", dest="binary",
+                        type=str,
+                        metavar="<binary>",
+                        help="binary executable to drill",
+                        required=True)
+
+    parser.add_argument("-i", dest="in_dir",
+                        type=str,
+                        metavar="<in_dir>",
+                        help="input directory",
+                        required=True)
+
+    parser.add_argument("-o", dest="out_dir",
+                        type=str,
+                        metavar="<out_dir>",
+                        help="output directory",
+                        required=True)
+
+    parser.add_argument("-n", dest="afl_count",
+                        type=int,
+                        metavar="<afl_count>" ,
+                        help="number of AFL instances to use",
+                        required=True)
+
+    args = parser.parse_args()
+
+    binary_path  = args.binary
+    in_dir       = args.in_dir
+    out_dir      = args.out_dir
+    afl_count    = args.afl_count
+
+    return start(binary_path, in_dir, out_dir, afl_count)
 
 if __name__ == "__main__":
     sys.exit(main())
