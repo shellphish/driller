@@ -82,10 +82,17 @@ def start(binary_dir, out_dir, fuzz_jobs, fuzzers_per_job):
     for binary in binaries:
         if binary.startswith("."):
             continue 
+
+        pathed_binary = os.path.join(binary_dir, binary)
+        if os.path.isdir(pathed_binary):
+            continue
+        if not os.access(pathed_binary, os.X_OK):
+            continue
+
         identifier = binary[:binary.rindex("_")]
         # remove IPC binaries from largescale testing
         if (identifier + "_02") not in binaries:
-            pathed_binaries.append(os.path.join(binary_dir, binary))
+            pathed_binaries.append(pathed_binary)
 
     l.info("%d binaries found", len(pathed_binaries))
     l.debug("binaries: %r", pathed_binaries)
