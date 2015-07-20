@@ -150,7 +150,12 @@ def start_afl_instance(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=No
 
     l.debug("execing: %s > %s" % (' '.join(args), outfile))
 
+    # kind of gross hack to get the output directory
+    work_dir = os.path.dirname(out_dir[:-1])
+
+    outfile = os.path.join(work_dir, outfile)
     fp = open(outfile, "w")
+
     return subprocess.Popen(args, stdout=fp)
 
 def start_afl(afl_path, binary_path, in_dir, out_dir, afl_count, driller_path, dictionary, eof_exit):
@@ -315,12 +320,13 @@ def show_afl_stats(sync_dir):
 
     return crashes
 
-def start(binary_path, in_dir, out_dir, afl_count):
+def start(binary_path, in_dir, out_dir, afl_count, work_dir=None):
     global procs
     global start_time
 
     base = os.path.dirname(__file__)
 
+    work_dir      = "." if work_dir is None else work_dir
     # start time
     start_time    = time.time()
     # the path to AFL capable of calling driller
@@ -334,7 +340,7 @@ def start(binary_path, in_dir, out_dir, afl_count):
     # redis channel id
     channel_id    = os.path.basename(binary_path)
     # afl dictionary
-    dict_file     = "%s.dict" % channel_id
+    dict_file     = os.path.join(work_dir, "%s.dict" % channel_id)
 
     l.debug("afl_path: %s" % afl_path)
     l.debug("driller_path: %s" % driller_path)
@@ -376,7 +382,7 @@ def start(binary_path, in_dir, out_dir, afl_count):
         crash_found = bool(show_afl_stats(out_dir))
 
     report_crash_found(channel_id)
-    terminate()
+    terminate(None, None)
 
     return 0
 
