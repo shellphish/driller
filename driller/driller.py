@@ -237,6 +237,7 @@ class Driller(object):
             # in the case which we have no paths but a next_move, that's trouble
             if next_move is not None and len(trace_group.active) < 1:
                 l.error("taking the branch at %#x is unsatisfiable to angr" % next_move)
+                l.error("input was %r" % self.input)
                 raise DrillerMisfollowError
 
             # mimic AFL's indexing scheme
