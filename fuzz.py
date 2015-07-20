@@ -210,7 +210,7 @@ def report_crash_found(identifier):
     redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
 
     # add True as a member
-    redis_inst.sadd(indentifier + "-crash-found", True)
+    redis_inst.sadd(identifier + "-crash-found", True)
 
 def listen(queue_dir, channel):
     l.info("subscring to redis channel %s" % channel)
