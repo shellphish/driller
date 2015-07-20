@@ -42,6 +42,7 @@ def terminate(signal, frame):
 def handle_timeout(signal, frame):
     global crash_found
     # end searching
+    l.warning("timeout hit! giving up on this binary")
     crash_found = True
 
 ### DICTIONARY CREATION
