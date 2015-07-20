@@ -29,7 +29,7 @@ def start_fuzzing(binary_path, out_dir, fuzzers):
     idx = binary.rindex("_") 
     identifier = binary[:idx]
 
-    l.info("id: %s", identifier)
+    l.info("working on binary with id \"%s\"", identifier)
 
     # make a solve directory
     work_dir = os.path.join(out_dir, identifier)
@@ -59,8 +59,16 @@ def start_fuzzing(binary_path, out_dir, fuzzers):
     # output file directory
     fuzz_out_dir = os.path.join(work_dir, "sync")
 
-    # start fuzzing
-    fuzz.start(our_binary, input_dir, fuzz_out_dir, fuzzers, work_dir)
+    # redirect output    
+    fuzz_log = os.path.join(work_dir, "fuzz.log")
+
+    with open(fuzz_log, 'wb') as f:
+        saved = sys.stdout
+        sys.stdout = f
+
+        # start fuzzing
+        fuzz.start(our_binary, input_dir, fuzz_out_dir, fuzzers, work_dir)
+        sys.stdout = saved
 
     return 0
 
@@ -68,13 +76,22 @@ def start(binary_dir, out_dir, fuzz_jobs, fuzzers_per_job):
 
     p = multiprocessing.Pool(fuzz_jobs)
 
-    binaries = map(lambda x: os.path.join(binary_dir, x), os.listdir(binary_dir))
-    l.info("%d binaries found", len(binaries))
-    l.debug("binaries: %r", binaries)
+    pathed_binaries = [ ] 
+    binaries = os.listdir(binary_dir)
+    for binary in binaries:
+        if binary.startswith("."):
+            continue 
+        identifier = binary[:binary.rindex("_")]
+        # remove IPC binaries from largescale testing
+        if (identifier + "_02") not in binaries:
+            pathed_binaries.append(os.path.join(binary_dir, binary))
+
+    l.info("%d binaries found", len(pathed_binaries))
+    l.debug("binaries: %r", pathed_binaries)
 
     # create a queue and put all the binaries there
     queue = multiprocessing.Queue()
-    for binary in binaries:
+    for binary in pathed_binaries:
         queue.put((binary, out_dir, fuzzers_per_job))
 
     procs = [ ] 
