@@ -333,7 +333,6 @@ def show_afl_stats(sync_dir):
         cstr = termcolor.colored(cstr, "red", attrs=["bold"])
 
     print "  Crashes            : %s crashes" % cstr
-    sys.stdout.flush()
 
     return crashes
 
