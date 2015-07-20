@@ -7,6 +7,7 @@ import os
 import sys
 import shutil
 import time
+import driller.config as config
 
 import logging
 l = logging.getLogger("largescale")
@@ -67,7 +68,7 @@ def start_fuzzing(binary_path, out_dir, fuzzers):
         sys.stdout = f
 
         # start fuzzing
-        fuzz.start(our_binary, input_dir, fuzz_out_dir, fuzzers, work_dir)
+        fuzz.start(our_binary, input_dir, fuzz_out_dir, fuzzers, work_dir, config.FUZZ_TIMEOUT)
         sys.stdout = saved
 
     return 0

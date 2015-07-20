@@ -7,6 +7,17 @@ REDIS_DB=1
 BROKER_URL="amqp://guest@localhost//"
 
 ### Environment Options
-QEMU_DIR="driller-qemu" # relative to the base directory
+
+# directory contain driller-qemu versions, relative to the directoy node.py is invoked in
+QEMU_DIR="driller-qemu"
+
+# directory containing the binaries, used by the driller node to find binaries
 BINARY_DIR="/cgc/binaries/"
-CRASH_CHECK_INTERVAL=60 # number of seconds to print stats and check for a crash
+
+### Fuzzer options
+
+# how often to check for crashes in seconds
+CRASH_CHECK_INTERVAL=60
+
+# how long to fuzz before giving up in seconds
+FUZZ_TIMEOUT=60 * 60 * 24

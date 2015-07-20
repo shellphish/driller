@@ -27,6 +27,9 @@ procs = [ ]
 
 start_time = 0
 
+# our timeout handler needs to be able to write to this so it's global
+crash_found = False
+
 ### EXIT HANDLERS
 
 def kill_procs():
@@ -35,6 +38,11 @@ def kill_procs():
 def terminate(signal, frame):
     kill_procs()
     sys.exit(0)
+
+def handle_timeout(signal, frame):
+    global crash_found
+    # end searching
+    crash_found = True
 
 ### DICTIONARY CREATION
 
@@ -328,9 +336,10 @@ def show_afl_stats(sync_dir):
 
     return crashes
 
-def start(binary_path, in_dir, out_dir, afl_count, work_dir=None):
+def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     global procs
     global start_time
+    global crash_found
 
     base = os.path.dirname(__file__)
 
@@ -374,6 +383,11 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None):
         l.warning("binary doesn't terminate on EOF! attempting to use hack to fix this")
         eof_exit = True
 
+    # if a timeout was specified set up a handler
+    if timeout is not None:
+        signal.signal(signal.SIGALRM, handle_timeout)
+        signal.alarm(timeout)
+
     # spin up the AFL guys
     start_afl(afl_path, binary_path, in_dir, out_dir, afl_count, 
             dictionary=dict_file, driller_path=driller_path, eof_exit=eof_exit)
@@ -384,7 +398,6 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None):
     # setup signal handler
     signal.signal(signal.SIGINT, terminate)
 
-    crash_found = False
     while not crash_found:
         time.sleep(config.CRASH_CHECK_INTERVAL)
         crash_found = bool(show_afl_stats(out_dir))
