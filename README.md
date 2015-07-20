@@ -21,4 +21,4 @@ run `node.py` with the number of workers to create
 * the BROKER_URL to point to the driller node and use the correct credentials
 * the REDIS_HOST, REDIS_PORT, and REDIS_DB settings 
 
-run `run.py` with the binary, input directory, output directory and number of fuzzers
+run `fuzz.py` with the binary, input directory, output directory and number of fuzzers
