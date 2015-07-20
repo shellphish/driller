@@ -29,8 +29,11 @@ start_time = 0
 
 ### EXIT HANDLERS
 
-def terminate(signal, frame):
+def kill_procs():
     map(lambda p: p.terminate(), procs)
+
+def terminate(signal, frame):
+    kill_procs()
     sys.exit(0)
 
 ### DICTIONARY CREATION
@@ -382,7 +385,7 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None):
         crash_found = bool(show_afl_stats(out_dir))
 
     report_crash_found(channel_id)
-    terminate(None, None)
+    kill_procs()
 
     return 0
 
