@@ -408,8 +408,10 @@ def main():
         time.sleep(config.CRASH_CHECK_INTERVAL)
         crash_found = bool(show_afl_stats(out_dir))
 
-    report_crash_found(identifier)
+    report_crash_found(channel_id)
     terminate()
 
+    return 0
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
