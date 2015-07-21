@@ -85,56 +85,6 @@ def create_dict(binary, outfile):
 
     return False
 
-### BEHAVIOR TESTING
-def terminates_on_eof(qemu_dir, binary):
-    l.info("attempting to detect if the binary doesn't terminate on EOF")
-
-    # detect the binary type
-    b = angr.Project(binary)
-    ld_arch = b.loader.main_bin.arch
-    ld_type = b.loader.main_bin.filetype
-
-    if ld_type == "cgc":
-        arch = "cgc"
-
-    elif ld_type == "elf":
-        if ld_arch == archinfo.arch_amd64.ArchAMD64:
-            arch = "x86_64"
-        if ld_arch == archinfo.arch_x86.ArchX86:
-            arch = "i386"
-
-    else:
-        l.error("binary is of an unsupported architecture")
-        raise NotImplementedError
-
-    qemu_path = os.path.join(qemu_dir, "driller-qemu-%s" % arch)
-    if not os.access(qemu_path, os.X_OK):
-        l.error("either qemu does not exist in config.QEMU_DIR or it is not executable")
-        return True
-
-    # create a dumb test input 
-    fd, tinput = tempfile.mkstemp()
-    os.close(fd)
-
-    with open(tinput, 'wb') as f:
-        f.write("fuzz")
-
-    with open(tinput, 'rb') as i:
-        with open('/dev/null', 'w') as o:
-            args = [qemu_path, binary]
-            p = subprocess.Popen(args, stdin=i, stdout=o)
-
-            time.sleep(2) # generously give the binary two seconds to terminate
-
-            if p.poll() is None: # it doesn't seem to terminate on EOF
-                p.terminate()
-                os.remove(tinput)
-                return False
-            
-    os.remove(tinput)
-    # good, it terminates on EOF, no monkey business
-    return True
-
 ### AFL SPAWNERS
 
 def start_afl_instance(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None, memory="8G",
@@ -377,14 +327,6 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     # set environment variable for the AFL_PATH
     os.environ['AFL_PATH'] = afl_path_var
 
-    eof_exit = False
-    # test if the binary terminates on EOF
-    if not terminates_on_eof(qemu_dir, binary_path):
-        l.warning("binary %s doesn't terminate on EOF! attempting to use hack to fix this", channel_id)
-        eof_exit = True
-    else:
-        l.info("binary %s terminates on EOF like normal", channel_id)
-
     # if a timeout was specified set up a handler
     if timeout is not None:
         signal.signal(signal.SIGALRM, handle_timeout)
@@ -392,7 +334,7 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
 
     # spin up the AFL guys
     start_afl(afl_path, binary_path, in_dir, out_dir, afl_count, 
-            dictionary=dict_file, driller_path=driller_path, eof_exit=eof_exit)
+            dictionary=dict_file, driller_path=driller_path, eof_exit=False)
 
     # spin up the redis listener
     procs.append(start_redis_listener(channel_id, out_dir))
@@ -404,6 +346,7 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
         time.sleep(config.CRASH_CHECK_INTERVAL)
         crash_found = bool(show_afl_stats(out_dir))
 
+    l.info("found crash for binary \"%s\"", channel_id)
     report_crash_found(channel_id)
     kill_procs()
 
