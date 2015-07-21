@@ -107,6 +107,7 @@ def start(binary_dir, out_dir, fuzz_jobs, fuzzers_per_job):
         p = multiprocessing.Process(target=worker, args=(queue,))
         procs.append(p) 
         p.start()
+        time.sleep(.3)
 
     for p in procs:
         p.join()
