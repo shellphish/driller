@@ -380,8 +380,10 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     eof_exit = False
     # test if the binary terminates on EOF
     if not terminates_on_eof(qemu_dir, binary_path):
-        l.warning("binary doesn't terminate on EOF! attempting to use hack to fix this")
+        l.warning("binary %s doesn't terminate on EOF! attempting to use hack to fix this", channel_id)
         eof_exit = True
+    else:
+        l.info("binary %s terminates on EOF like normal", channel_id)
 
     # if a timeout was specified set up a handler
     if timeout is not None:
