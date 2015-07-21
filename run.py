@@ -61,7 +61,7 @@ def start_fuzzing(binary_path, out_dir, fuzzers):
     fuzz_out_dir = os.path.join(work_dir, "sync")
 
     # redirect output    
-    fuzz_log = os.path.join(work_dir, "fuzz.log")
+    fuzz_log = os.path.join(work_dir, "job.log")
 
     with open(fuzz_log, 'wb') as f:
         saved = sys.stdout
