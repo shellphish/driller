@@ -337,7 +337,7 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     report_crash_found(channel_id)
     kill_procs()
 
-    return 0
+    return crash_found
 
 def main():
 
