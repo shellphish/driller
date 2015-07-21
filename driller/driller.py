@@ -285,10 +285,7 @@ class Driller(object):
             # l.info("current at %#x", current.addr)
 
             if len(bb_trace[bb_idx:]) == 0:
-                if self.exit_on_eof:
-                    return (bb_idx, None)
-                if len(current.successors) == 0:
-                    pass # angr makes one step after the _terminate call, qemu doesn't
+                return (bb_idx, None)
             elif current.addr == bb_trace[bb_idx]:
                 bb_idx += 1  # expected behaviour, the trace matches the angr basic block
             elif current.addr == previous:
