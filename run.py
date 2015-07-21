@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-import fuzz
-import argparse
-import multiprocessing
 import os
 import sys
-import shutil
+import fuzz
 import time
+import shutil
+import argparse
+import multiprocessing
 import driller.config as config
 
 import logging
