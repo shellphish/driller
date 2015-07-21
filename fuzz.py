@@ -299,9 +299,13 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
 
     # look for a dictionary, if one doesn't exist create it with angr
     if not os.path.isfile(dict_file):
-        l.info("creating a dictionary of string references found in the binary")
-        if not create_dict(binary_path, dict_file):
-            l.warning("failed to create dictionary, this can really impede on AFL's progress")
+        try:
+            l.info("creating a dictionary of string references found in the binary")
+            if not create_dict(binary_path, dict_file):
+                l.warning("failed to create dictionary, this can really impede on AFL's progress")
+                dict_file = None
+        except:
+            l.info("unknown error encountered creating dictionary for binary \"%s\"", channel_id)
             dict_file = None
 
     # set environment variable for the AFL_PATH
