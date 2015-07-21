@@ -267,24 +267,6 @@ def show_afl_stats(sync_dir):
 
     return crashes
 
-    m, s = divmod(checktime - start_time, 60)
-    h, m = divmod(m, 60)
-    print "=" * 40
-    print "  Run time           : %d:%02d:%02d" % (h, m, s)
-    print "  Fuzzers Alive      : %d alive" % alive_cnt
-    print "  Pending paths      : %d faves, %d total" % (pending_favs, pending_total)
-    print "  Pending per fuzzer : %d faves, %d total" % (pending_favs / alive_cnt, pending_total / alive_cnt)
-    print "  Cumulative speed   : %d execs/sec" % int((execs_done * alive_cnt) / total_time)
-    print "  Drilled inputs     : %d inputs" % drilled_inputs
-
-    cstr = "%d" % crashes
-    if crashes > 0:
-        cstr = termcolor.colored(cstr, "red", attrs=["bold"])
-
-    print "  Crashes            : %s crashes" % cstr
-
-    return crashes
-
 def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     global procs
     global start_time
@@ -336,12 +318,18 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     signal.signal(signal.SIGINT, terminate)
 
     crash_found = False
-    while not crash_found:
+    time_left = True
+    while not crash_found and time_left:
         time.sleep(config.CRASH_CHECK_INTERVAL)
         crash_found = bool(show_afl_stats(out_dir))
+        time_left = (int(time.time()) - start_time) < config.FUZZ_TIMEOUT
         l.debug("[%s] crash found? %r" % (channel_id, crash_found))
 
-    l.info("found crash for binary \"%s\"", channel_id)
+    if not time_left:
+        l.warning("timed out for binary \"%s\"", channel_id)
+    if crash_found:
+        l.info("found crash for binary \"%s\"", channel_id)
+
     report_crash_found(channel_id)
     kill_procs()
 
