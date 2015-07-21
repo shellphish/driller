@@ -27,9 +27,6 @@ procs = [ ]
 
 start_time = 0
 
-# our timeout handler needs to be able to write to this so it's global
-crash_found = False
-
 ### EXIT HANDLERS
 
 def kill_procs():
@@ -268,6 +265,8 @@ def show_afl_stats(sync_dir):
         execs_done    += int(stats[fuzzer]['execs_done'])
         crashes       += int(stats[fuzzer]['unique_crashes'])
 
+    return crashes
+
     m, s = divmod(checktime - start_time, 60)
     h, m = divmod(m, 60)
     print "=" * 40
@@ -289,7 +288,6 @@ def show_afl_stats(sync_dir):
 def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     global procs
     global start_time
-    global crash_found
 
     base = os.path.dirname(__file__)
 
@@ -327,11 +325,6 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     # set environment variable for the AFL_PATH
     os.environ['AFL_PATH'] = afl_path_var
 
-    # if a timeout was specified set up a handler
-    if timeout is not None:
-        signal.signal(signal.SIGALRM, handle_timeout)
-        signal.alarm(timeout)
-
     # spin up the AFL guys
     start_afl(afl_path, binary_path, in_dir, out_dir, afl_count, 
             dictionary=dict_file, driller_path=driller_path, eof_exit=False)
@@ -342,9 +335,11 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     # setup signal handler
     signal.signal(signal.SIGINT, terminate)
 
+    crash_found = False
     while not crash_found:
         time.sleep(config.CRASH_CHECK_INTERVAL)
         crash_found = bool(show_afl_stats(out_dir))
+        l.debug("[%s] crash found? %r" % (channel_id, crash_found))
 
     l.info("found crash for binary \"%s\"", channel_id)
     report_crash_found(channel_id)
