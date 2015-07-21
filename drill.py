@@ -4,18 +4,24 @@
 Frontend for driller, AFL invokes this script when it's having trouble making any progress.
 '''
 
+import logging
+import logconfig
+
+# silence these loggers
+logging.getLogger().setLevel("CRITICAL")
+
+l = logging.getLogger("driller.drill")
+l.setLevel("INFO")
+
 import angr
 import driller
 import driller.tasks
 import driller.config as config
 
 import argparse
-import logging
 import os
 import sys
 
-l = logging.getLogger("driller.drill")
-l.setLevel("INFO")
 
 def main(argv):
     parser = argparse.ArgumentParser(description="Increase AFL's code coverage")

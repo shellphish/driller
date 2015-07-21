@@ -20,7 +20,6 @@ import string
 import logging
 
 l = logging.getLogger("driller.fuzz")
-l.setLevel("INFO")
 
 # global list of processes so we can kill them on SIGINT
 procs = [ ] 
@@ -200,7 +199,7 @@ def listen(queue_dir, channel):
         if msg['type'] == 'message':
             real_msg = pickle.loads(msg['data'])
             out_filename = "driller-%d-%x-%x" % real_msg['meta']
-            l.info("dumping new input to %s" % out_filename)
+            l.debug("dumping new input to %s" % out_filename)
             afl_name = "id:%06d,src:%s" % (input_cnt, out_filename)
             out_file = os.path.join(queue_dir, afl_name)
 
@@ -340,6 +339,7 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     return crash_found
 
 def main():
+    l.setLevel("INFO")
 
     parser = argparse.ArgumentParser(description="Driller")
 

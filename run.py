@@ -1,5 +1,15 @@
 #!/usr/bin/env python
 
+import logging
+import logconfig
+
+# silence these loggers
+logging.getLogger().setLevel("CRITICAL")
+logging.getLogger("driller.fuzz").setLevel("INFO")
+
+l = logging.getLogger("driller.run")
+l.setLevel("INFO")
+
 import os
 import sys
 import fuzz
@@ -9,26 +19,19 @@ import argparse
 import multiprocessing
 import driller.config as config
 
-import logging
-l = logging.getLogger("driller.run")
-l.setLevel("INFO")
-
-t = logging.getLogger("angr")
-t.setLevel("CRITICAL")
-
-t = logging.getLogger("simuvex")
-t.setLevel("CRITICAL")
-
-
 '''
 Large scale test script. Should just require pointing it at a directory and specifying
 the number of number of jobs which can run at a time and the fuzzers per job
 '''
 
+status = {}
+
 def worker(q):
+    global status
+
     while not q.empty():
         p = q.get()
-        start_fuzzing(*p)
+        crashed = start_fuzzing(*p)
 
     return 0
         
@@ -70,15 +73,8 @@ def start_fuzzing(binary_path, out_dir, fuzzers):
     # redirect output    
     fuzz_log = os.path.join(work_dir, "job.log")
 
-    with open(fuzz_log, 'wb') as f:
-        saved = sys.stdout
-        sys.stdout = f
-
-        # start fuzzing
-        fuzz.start(our_binary, input_dir, fuzz_out_dir, fuzzers, work_dir, config.FUZZ_TIMEOUT)
-        sys.stdout = saved
-
-    return 0
+    # start fuzzing
+    return fuzz.start(our_binary, input_dir, fuzz_out_dir, fuzzers, work_dir, config.FUZZ_TIMEOUT)
 
 def start(binary_dir, out_dir, fuzz_jobs, fuzzers_per_job):
 

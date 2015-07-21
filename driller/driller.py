@@ -1,5 +1,4 @@
 import logging
-import logconfig
 
 l = logging.getLogger("driller.Driller")
 l.setLevel("INFO")
