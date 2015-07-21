@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import termcolor
+
+def collect_stats(d):
+    '''
+    collect stats for a single driller work dir
+
+    :param d: path to the work dir
+    '''
+
+    crashes_found  = 0
+    drilled_inputs = 0
+
+    sync_dir = os.path.join(d, "sync")
+    for fuzzer in os.listdir(sync_dir):
+        if fuzzer == "driller":
+            d_queue = os.path.join(sync_dir, fuzzer, "queue")
+            drilled_inputs = len(os.listdir(d_queue))
+        else:
+            crash_dir = os.path.join(sync_dir, fuzzer, "crashes")
+            crashes_found += len(os.listdir(crash_dir))
+
+    return {'drilled_inputs': drilled_inputs, 'crashes': crashes_found}
+
+def main(argv):
+
+    if (len(argv) < 2):
+        print "usage: %s <driller_dir>"
+        return 1
+
+    driller_dir = argv[1]
+
+    if not os.path.isdir(driller_dir):
+        print "driller_dir must be a directory"
+        return 1
+
+    stats = {}
+    for job in os.listdir(driller_dir):
+        stats[job] = collect_stats(os.path.join(driller_dir, job))
+
+    for job in stats:
+        print "%s... " % job,
+        if stats[job]['crashes'] > 0:
+            b = termcolor.colored("crash found", "red", attrs=["bold"])
+            if stats[job]['drilled_inputs'] > 0:
+                b += ", " + termcolor.colored("driller assisted", "green", attrs=["bold"])
+            print b
+        else:
+            print
+         
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
