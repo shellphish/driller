@@ -10,8 +10,15 @@ import time
 import driller.config as config
 
 import logging
-l = logging.getLogger("largescale")
+l = logging.getLogger("run")
 l.setLevel("INFO")
+
+t = logging.getLogger("angr")
+t.setLevel("CRITICAL")
+
+t = logging.getLogger("simuvex")
+t.setLevel("CRITICAL")
+
 
 '''
 Large scale test script. Should just require pointing it at a directory and specifying
