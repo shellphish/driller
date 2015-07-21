@@ -1,7 +1,6 @@
 import logging
 
 l = logging.getLogger("driller.Driller")
-l.setLevel("INFO")
 
 import angr
 import archinfo
