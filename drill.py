@@ -14,7 +14,7 @@ import logging
 import os
 import sys
 
-l = logging.getLogger("drill")
+l = logging.getLogger("driller.drill")
 l.setLevel("INFO")
 
 def main(argv):

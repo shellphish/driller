@@ -19,7 +19,7 @@ import string
 
 import logging
 
-l = logging.getLogger("fuzz")
+l = logging.getLogger("driller.fuzz")
 l.setLevel("INFO")
 
 # global list of processes so we can kill them on SIGINT
@@ -304,8 +304,8 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
             if not create_dict(binary_path, dict_file):
                 l.warning("failed to create dictionary, this can really impede on AFL's progress")
                 dict_file = None
-        except:
-            l.info("unknown error encountered creating dictionary for binary \"%s\"", channel_id)
+        except Exception as e:
+            l.error("encountered %r exception when creating fuzzer dict for \"%s\"", e, channel_id)
             dict_file = None
 
     # set environment variable for the AFL_PATH

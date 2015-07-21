@@ -10,7 +10,7 @@ import time
 import driller.config as config
 
 import logging
-l = logging.getLogger("run")
+l = logging.getLogger("driller.run")
 l.setLevel("INFO")
 
 t = logging.getLogger("angr")
