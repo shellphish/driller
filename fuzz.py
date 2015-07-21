@@ -181,8 +181,8 @@ def report_crash_found(identifier):
     redis_inst.sadd(identifier + "-crash-found", True)
 
 def listen(queue_dir, channel):
-    l.info("subscring to redis channel %s" % channel)
-    l.info("new inputs will be placed into %s" % queue_dir)
+    l.debug("subscring to redis channel %s" % channel)
+    l.debug("new inputs will be placed into %s" % queue_dir)
 
     try:
         os.makedirs(queue_dir)
@@ -300,9 +300,9 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     # look for a dictionary, if one doesn't exist create it with angr
     if not os.path.isfile(dict_file):
         try:
-            l.info("creating a dictionary of string references found in the binary")
+            l.debug("creating a dictionary of string references found in the binary")
             if not create_dict(binary_path, dict_file):
-                l.warning("failed to create dictionary, this can really impede on AFL's progress")
+                l.warning("failed to create dictionary for binary \"%s\"", channel_id)
                 dict_file = None
         except Exception as e:
             l.error("encountered %r exception when creating fuzzer dict for \"%s\"", e, channel_id)
