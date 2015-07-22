@@ -44,9 +44,9 @@ def main(argv):
     for job in stats:
         print "%s... " % job,
         if stats[job]['crashes'] > 0:
-            b = termcolor.colored("crash found", "red", attrs=["bold"])
+            b = termcolor.colored("crash", "red", attrs=["bold"])
             if stats[job]['drilled_inputs'] > 0:
-                b += ", " + termcolor.colored("driller assisted", "green", attrs=["bold"])
+                b += " " + termcolor.colored("driller", "green", attrs=["bold"])
             print b
         else:
             print
