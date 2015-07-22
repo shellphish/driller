@@ -4,6 +4,10 @@ from celery import Celery
 from .driller import Driller
 import config
 import os
+import logging
+
+l = logging.getLogger("driller.tasks")
+l.setLevel("INFO")
 
 backend_url = "redis://%s:%d" % (config.REDIS_HOST, config.REDIS_PORT)
 app = Celery('tasks', broker=config.BROKER_URL, backend=backend_url)
@@ -16,4 +20,7 @@ def drill(binary, input, fuzz_bitmap, exit_on_eof=False):
     binary_path = os.path.join(config.BINARY_DIR, binary)
     driller = Driller(binary_path, input, fuzz_bitmap, config.QEMU_DIR, redis=redis_inst,
                         exit_on_eof=exit_on_eof)
-    return driller.drill()
+    try:
+        return driller.drill()
+    except Exception as e:
+        l.error("encountered %r exception when drilling into \"%s\"", binary)
