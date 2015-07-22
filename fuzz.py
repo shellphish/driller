@@ -81,6 +81,30 @@ def create_dict(binary, outfile):
 
     return False
 
+### BEHAVIOR TESTING
+
+def crash_test(qemu_dir, binary):
+
+    args = [os.path.join(qemu_dir, "driller-qemu-cgc"), binary]
+
+    fd, jfile = tempfile.mkstemp()
+    os.close(fd)
+
+    with open(jfile, 'w') as f:
+        f.write("fuzz")
+
+    with open(jfile, 'r') as i:
+        with open('/dev/null', 'w') as o:
+            p = subprocess.Popen(args, stdin=i, stdout=o)
+            p.wait()
+
+            if p.poll() < 0:
+                ret = True
+            else:
+                ret = False
+
+    return ret
+
 ### AFL SPAWNERS
 
 def start_afl_instance(afl_path, binary, in_dir, out_dir, fuzz_id, dictionary=None, memory="8G",
@@ -293,6 +317,9 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     l.debug("AFL_PATH_ENV: %s" % afl_path_var)
     l.debug("channel_id: %s" % channel_id) 
 
+    # test to see if the binary is so bad it crashes on our test case
+    crash_found = crash_test(qemu_dir, binary_path)
+
     # clear redis database
     clear_redis(channel_id)
 
@@ -320,7 +347,6 @@ def start(binary_path, in_dir, out_dir, afl_count, work_dir=None, timeout=None):
     # setup signal handler
     signal.signal(signal.SIGINT, terminate)
 
-    crash_found = False
     time_left = True
     while not crash_found and time_left:
         time.sleep(config.CRASH_CHECK_INTERVAL)
