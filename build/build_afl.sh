@@ -23,6 +23,7 @@ cd afl-$VERS
 
 patch afl-fuzz.c < ../../patches/driller-afl.patch
 patch qemu_mode/build_qemu_support.sh < ../../patches/driller-afl-qemu-mode.patch
+patch qemu_mode/patches/afl-qemu-cpu-inl.h < ../../patches/driller-afl-qemu-cpu-inl.patch
 
 make -j
 cd qemu_mode
