@@ -24,7 +24,7 @@ def collect_stats(d):
                 crash_dir = os.path.join(sync_dir, fuzzer, "crashes")
                 crashes_found += len(os.listdir(crash_dir))
 
-    return {'drilled_inputs': drilled_inputs, 'crashes': crashes_found}
+    return {'driller': drilled_inputs, 'crashes': crashes_found}
 
 def main(argv):
 
@@ -42,16 +42,39 @@ def main(argv):
     for job in os.listdir(driller_dir):
         stats[job] = collect_stats(os.path.join(driller_dir, job))
 
+    pwned_list = '/cgc/output/pwned'
+    old_pwned_here = False
+    if os.path.exists(pwned_list):
+        old_pwned_here = True
+        old_pwned = set(open(pwned_list).read().split('\n')[:-1])
+
+    drilled_bins = crashed_bins = 0
     for job in stats:
         print "%s... " % job,
+        new_pwn = " "
         if stats[job]['crashes'] > 0:
-            b = termcolor.colored("crash", "red", attrs=["bold"])
-            if stats[job]['drilled_inputs'] > 0:
-                b += " " + termcolor.colored("driller", "green", attrs=["bold"])
-            print b
+            crash_word = termcolor.colored("crash", "red", attrs=["bold"])
+            crashed_bins += 1
+            if job not in old_pwned and old_pwned_here:
+                new_pwn = "*"  
         else:
-            print
+            crash_word = " " * len("crash")
+
+        if stats[job]['driller'] > 0:
+            drill_word = termcolor.colored("driller", "green", attrs=["bold"])
+            drilled_bins += 1
+        else:
+            drill_word = " " * len("driller")
+
+        print "%s %s %s" % (crash_word, drill_word, new_pwn)
          
+    
+
+    crash_count = termcolor.colored("%d" % crashed_bins, "red", attrs=["bold"])
+    drill_count = termcolor.colored("%d" % drilled_bins, "green", attrs=["bold"])
+
+    print 
+    print "crashed... %s  drilled... %s" % (crash_count, drill_count)
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
