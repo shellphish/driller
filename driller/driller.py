@@ -64,7 +64,7 @@ class Driller(object):
 
         # setup directories for the driller and perform sanity checks on the directory structure here
         if not self._sane():
-            l.error("environment or parameters are unfit for a driller run")
+            l.error("[%s] environment or parameters are unfit for a driller run", self.identifier)
             raise DrillerEnvironmentError
 
         # basic block trace, initialized in .drill
