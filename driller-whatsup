@@ -15,13 +15,14 @@ def collect_stats(d):
     drilled_inputs = 0
 
     sync_dir = os.path.join(d, "sync")
-    for fuzzer in os.listdir(sync_dir):
-        if fuzzer == "driller":
-            d_queue = os.path.join(sync_dir, fuzzer, "queue")
-            drilled_inputs = len(os.listdir(d_queue))
-        else:
-            crash_dir = os.path.join(sync_dir, fuzzer, "crashes")
-            crashes_found += len(os.listdir(crash_dir))
+    if os.path.isdir(sync_dir):
+        for fuzzer in os.listdir(sync_dir):
+            if fuzzer == "driller":
+                d_queue = os.path.join(sync_dir, fuzzer, "queue")
+                drilled_inputs = len(os.listdir(d_queue))
+            else:
+                crash_dir = os.path.join(sync_dir, fuzzer, "crashes")
+                crashes_found += len(os.listdir(crash_dir))
 
     return {'drilled_inputs': drilled_inputs, 'crashes': crashes_found}
 
