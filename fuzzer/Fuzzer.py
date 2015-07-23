@@ -15,9 +15,8 @@ import cPickle as pickle
 import logging
 
 l = logging.getLogger("driller.Fuzzer")
-l.setLevel(logging.DEBUG)
 
-class FuzzerEarlyCrash(Exception):
+class EarlyCrash(Exception):
     pass
 
 def hexescape(s):
@@ -158,7 +157,7 @@ class Fuzzer(object):
 
         # test to see if the binary is so bad it crashes on our test case
         if self._crash_test():
-            raise FuzzerEarlyCrash
+            raise EarlyCrash
 
         # spin up the redis listener
         self.procs.append(self._driller_listener())
