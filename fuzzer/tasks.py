@@ -37,6 +37,6 @@ def fuzz(binary):
 
     if fuzzer.found_crash():
         redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
-        redis.publish("crashes", binary)
+        redis_inst.publish("crashes", binary)
 
     return fuzzer.found_crash()
