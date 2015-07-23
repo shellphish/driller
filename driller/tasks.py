@@ -10,7 +10,7 @@ l = logging.getLogger("driller.tasks")
 l.setLevel("INFO")
 
 backend_url = "redis://%s:%d" % (config.REDIS_HOST, config.REDIS_PORT)
-app = Celery('tasks', broker=config.BROKER_URL, backend=backend_url)
+app = Celery('driller', broker=config.BROKER_URL, backend=backend_url)
 redis_pool = redis.ConnectionPool(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
 
 @app.task

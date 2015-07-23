@@ -21,3 +21,6 @@ CRASH_CHECK_INTERVAL=60
 
 # how long to fuzz before giving up in seconds
 FUZZ_TIMEOUT=60 * 60 * 24
+
+# how many fuzzers should be spun up when a fuzzing job is received
+FUZZER_INSTANCES=5
