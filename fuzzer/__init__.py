@@ -1,1 +1,1 @@
-from Fuzzer import Fuzzer
+from Fuzzer import Fuzzer, EarlyCrash

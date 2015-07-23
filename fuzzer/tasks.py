@@ -1,7 +1,7 @@
 import redis
 from celery import Celery
 
-from .Fuzzer import Fuzzer
+from .fuzzer import Fuzzer, EarlyCrash
 
 import os
 import time
@@ -11,7 +11,8 @@ import logging
 l = logging.getLogger("fuzzer.tasks")
 
 backend_url = "redis://%s:%d" % (config.REDIS_HOST, config.REDIS_PORT)
-app = Celery('fuzzer', broker=config.BROKER_URL, backend=backend_url)
+app = Celery('tasks', broker=config.BROKER_URL, backend=backend_url)
+app.conf.CELERY_ROUTES = config.CELERY_ROUTES
 
 @app.task
 def fuzz(binary):
@@ -21,7 +22,7 @@ def fuzz(binary):
 
     try:
         fuzzer.start()
-    except Fuzzer.EarlyCrash:
+    except EarlyCrash:
         l.info("binary crashed on dummy testcase, moving on...")
         return 0
 
