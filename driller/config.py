@@ -4,7 +4,7 @@ REDIS_PORT=6379
 REDIS_DB=1
 
 ### Celery Options
-BROKER_URL="amqp://guest@localhost//"
+BROKER_URL="amqp://guest:guest@localhost//"
 
 CELERY_ROUTES = {'fuzzer.tasks.fuzz': {'queue': 'fuzzer'}, 'driller.tasks.drill': {'queue': 'driller'}}
 
@@ -25,4 +25,7 @@ CRASH_CHECK_INTERVAL=60
 FUZZ_TIMEOUT=60 * 60 * 24
 
 # how many fuzzers should be spun up when a fuzzing job is received
-FUZZER_INSTANCES=5
+FUZZER_INSTANCES=4
+
+# where the fuzzer should place it's results on the filesystem
+FUZZER_WORK_DIR="work"

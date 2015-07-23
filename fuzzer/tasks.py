@@ -18,7 +18,7 @@ app.conf.CELERY_ROUTES = config.CELERY_ROUTES
 def fuzz(binary):
 
     binary_path = os.path.join(config.BINARY_DIR, binary)
-    fuzzer = Fuzzer(binary_path, "tests", config.FUZZER_INSTANCES)
+    fuzzer = Fuzzer(binary_path, config.FUZZER_WORK_DIR, config.FUZZER_INSTANCES)
 
     try:
         fuzzer.start()
@@ -27,7 +27,6 @@ def fuzz(binary):
         return 0
 
     # start the fuzzer and poll for a crash or timeout
-    fuzzer.start()
     while not fuzzer.found_crash() and not fuzzer.timed_out():
         time.sleep(config.CRASH_CHECK_INTERVAL)
 
