@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-07-18 20:59:54.275887205 -0700
++++ afl-fuzz.c	2015-07-23 14:01:21.700770307 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -243,7 +243,7 @@
      return new_argv;
  
    }
-@@ -7257,6 +7309,42 @@
+@@ -7257,6 +7309,48 @@
  
  }
  
@@ -251,7 +251,8 @@
 +void invoke_driller(char **use_argv)
 +{
 +    pid_t driller_pid;
-+    char *argv[8];
++    int status; 
++    char *argv[9];
 +
 +    SAYF(cYEL "[!]" cRST " driller being invoked!\n");
 +
@@ -282,11 +283,16 @@
 +    {
 +        perror("failed to invoke driller");
 +    }  
++
++    if (waitpid(driller_pid, &status, 0) < 0)
++    {
++        perror("failed to wait for driller process");
++    } 
 +}
  
  /* Main entry point */
  
-@@ -7274,7 +7362,7 @@
+@@ -7274,7 +7368,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -295,7 +301,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7381,17 @@
+@@ -7293,6 +7387,17 @@
          out_dir = optarg;
          break;
  
@@ -313,7 +319,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7569,7 @@
+@@ -7470,7 +7575,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -322,7 +328,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7586,7 @@
+@@ -7487,6 +7592,7 @@
  
    start_time = get_cur_time();
  
@@ -330,7 +336,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7657,20 @@
+@@ -7557,6 +7663,20 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
