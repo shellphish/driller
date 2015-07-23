@@ -15,6 +15,8 @@ l = logging.getLogger("fuzzer.tasks")
 backend_url = "redis://%s:%d" % (config.REDIS_HOST, config.REDIS_PORT)
 app = Celery('tasks', broker=config.BROKER_URL, backend=backend_url)
 app.conf.CELERY_ROUTES = config.CELERY_ROUTES
+app.conf['CELERY_ACKS_LATE'] = True
+app.conf['CELERYD_PREFETCH_MULTIPLIER'] = 1
 
 @app.task
 def fuzz(binary):
