@@ -14,7 +14,7 @@ backend_url = "redis://%s:%d" % (config.REDIS_HOST, config.REDIS_PORT)
 app = Celery('fuzzer', broker=config.BROKER_URL, backend=backend_url)
 
 @app.task
-def drill(binary, input, fuzz_bitmap, exit_on_eof=False):
+def fuzz(binary):
 
     binary_path = os.path.join(config.BINARY_DIR, binary)
     fuzzer = Fuzzer(binary_path, "tests", config.FUZZER_INSTANCES)
