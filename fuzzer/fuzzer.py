@@ -168,7 +168,10 @@ class Fuzzer(object):
         self.alive = True
 
     def kill(self):
-        map(lambda p: p.terminate(), self.procs)
+        for p in self.procs:
+            p.terminate()
+            p.wait()
+
         self.alive = False
 
     def stats(self):
