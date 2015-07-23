@@ -30,4 +30,7 @@ def drill(binary, input, fuzz_bitmap, exit_on_eof=False):
     while not fuzzer.found_crash() and not fuzzer.timed_out():
         time.sleep(config.CRASH_CHECK_INTERVAL)
 
+    # make sure to kill the fuzzers when we're done
+    fuzzer.kill()
+
     return fuzzer.found_crash()
