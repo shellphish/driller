@@ -12,75 +12,17 @@ l.setLevel("INFO")
 
 import os
 import sys
-import fuzz
-import time
-import shutil
-import argparse
-import multiprocessing
+import redis
+import fuzzer.tasks
 import driller.config as config
 
 '''
-Large scale test script. Should just require pointing it at a directory and specifying
-the number of number of jobs which can run at a time and the fuzzers per job
+Large scale test script. Should just require pointing it at a directory full of binaries.
 '''
 
-status = {}
+def start(binary_dir):
 
-def worker(q):
-    global status
-
-    while not q.empty():
-        p = q.get()
-        crashed = start_fuzzing(*p)
-
-    return 0
-        
-def start_fuzzing(binary_path, out_dir, fuzzers):
-    binary = os.path.basename(binary_path)
-    idx = binary.rindex("_") 
-    identifier = binary[:idx]
-
-    l.info("working on binary with id \"%s\"", identifier)
-
-    # make a solve directory
-    work_dir = os.path.join(out_dir, identifier)
-    l.debug("work_dir: %s", work_dir)
-
-    try:
-        os.makedirs(work_dir)
-    except OSError:
-        l.warning("unable to making work directory for challenge %s", identifier)
-
-    # copy the binary over
-    our_binary = os.path.join(work_dir, binary)
-    shutil.copy(binary_path, our_binary)
-
-    # make an input directory with just the file fuzz
-    input_dir  = os.path.join(work_dir, "input")
-    try:
-        os.makedirs(input_dir)
-    except OSError:
-        l.warning("unable to make input directory for challenge %s", identifier)
-
-    input_file = os.path.join(input_dir, "fuzz")
-
-    with open(input_file, 'wb') as f:
-        f.write("fuzz")
-
-    # output file directory
-    fuzz_out_dir = os.path.join(work_dir, "sync")
-
-    # redirect output    
-    fuzz_log = os.path.join(work_dir, "job.log")
-
-    # start fuzzing
-    return fuzz.start(our_binary, input_dir, fuzz_out_dir, fuzzers, work_dir, config.FUZZ_TIMEOUT)
-
-def start(binary_dir, out_dir, fuzz_jobs, fuzzers_per_job):
-
-    p = multiprocessing.Pool(fuzz_jobs)
-
-    pathed_binaries = [ ] 
+    jobs = [ ]
     binaries = os.listdir(binary_dir)
     for binary in binaries:
         if binary.startswith("."):
@@ -95,64 +37,36 @@ def start(binary_dir, out_dir, fuzz_jobs, fuzzers_per_job):
         identifier = binary[:binary.rindex("_")]
         # remove IPC binaries from largescale testing
         if (identifier + "_02") not in binaries:
-            pathed_binaries.append(pathed_binary)
+            jobs.append(binary)
 
-    l.info("%d binaries found", len(pathed_binaries))
-    l.debug("binaries: %r", pathed_binaries)
+    l.info("%d binaries found", len(jobs))
+    l.debug("binaries: %r", jobs)
 
-    # create a queue and put all the binaries there
-    queue = multiprocessing.Queue()
-    for binary in pathed_binaries:
-        queue.put((binary, out_dir, fuzzers_per_job))
+    # send all the binaries to the celery queue
+    for binary in jobs:
+        fuzzer.tasks.fuzz.delay(binary)
 
-    procs = [ ] 
-    for i in range(fuzz_jobs):
-        p = multiprocessing.Process(target=worker, args=(queue,))
-        procs.append(p) 
-        p.start()
-        time.sleep(.3)
+def listen():
 
-    for p in procs:
-        p.join()
+    redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
+    p = redis_inst.pubsub()
 
-def main():
-    global fuzzers_per_job
-    global out_dir
+    p.subscribe("crashes")
 
-    parser = argparse.ArgumentParser(description="Largescale Tester") 
+    for msg in p.listen():
+        if msg['type'] == 'message':
+            print "crash found for '%s'" % msg['data'] 
 
-    parser.add_argument("-i", dest="binary_dir",
-                        type=str,
-                        metavar="<binary_dir>",
-                        help="directory of challenge binaries",
-                        required=True)
+def main(argv):
 
-    parser.add_argument("-o", dest="out_dir",
-                        type=str,
-                        metavar="<out_dir>",
-                        help="working directories",
-                        required=True)
+    if len(argv) < 2:
+        print "usage: %s <binary_dir>" % argv[0]
+        return 1
 
-    parser.add_argument("-n", dest="fuzz_jobs",
-                        type=int,
-                        metavar="<fuzz_jobs>",
-                        help="number of simultaneous fuzzing jobs",
-                        required=True)
+    binary_dir = sys.argv[1]
 
-    parser.add_argument("-j", dest="fuzzers_per_job",
-                        type=int,
-                        metavar="<fuzzers_per_job>",
-                        help="number of fuzzers per job",
-                        required=True)
-
-    args = parser.parse_args()
-
-    binary_dir      = args.binary_dir
-    out_dir         = args.out_dir
-    fuzz_jobs       = args.fuzz_jobs
-    fuzzers_per_job = args.fuzzers_per_job
-
-    start(binary_dir, out_dir, fuzz_jobs, fuzzers_per_job)
+    start(binary_dir)
+    listen()
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv))

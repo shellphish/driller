@@ -5,8 +5,10 @@ from .fuzzer import Fuzzer, EarlyCrash
 
 import os
 import time
-import driller.config as config
+import redis
 import logging
+import cPickle as pickle
+import driller.config as config
 
 l = logging.getLogger("fuzzer.tasks")
 
@@ -32,5 +34,9 @@ def fuzz(binary):
 
     # make sure to kill the fuzzers when we're done
     fuzzer.kill()
+
+    if fuzzer.found_crash():
+        redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
+        redis.publish("crashes", binary)
 
     return fuzzer.found_crash()
