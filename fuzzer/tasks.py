@@ -21,7 +21,7 @@ def drill(binary, input, fuzz_bitmap, exit_on_eof=False):
 
     try:
         fuzzer.start()
-    except Fuzzer.EarlyCrash
+    except Fuzzer.EarlyCrash:
         l.info("binary crashed on dummy testcase, moving on...")
         return 0
 
