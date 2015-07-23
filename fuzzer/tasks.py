@@ -42,6 +42,7 @@ def fuzz(binary):
         early_crash = True
 
     if fuzzer.found_crash() or early_crash:
+        l.info("found crash for \"%s\"", binary)
         redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
         redis_inst.publish("crashes", binary)
 
