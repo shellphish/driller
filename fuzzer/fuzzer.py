@@ -194,8 +194,11 @@ class Fuzzer(object):
         stats = self.stats()
 
         for job in stats:
-            if int(stats[job]['unique_crashes']) > 0:
-                return True
+            try:
+                if int(stats[job]['unique_crashes']) > 0:
+                    return True
+            except KeyError:
+                pass
 
         return False
 

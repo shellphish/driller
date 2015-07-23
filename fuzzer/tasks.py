@@ -19,24 +19,29 @@ app.conf.CELERY_ROUTES = config.CELERY_ROUTES
 @app.task
 def fuzz(binary):
 
+    l.info("beginning to fuzz \"%s\"", binary)
+
     binary_path = os.path.join(config.BINARY_DIR, binary)
     fuzzer = Fuzzer(binary_path, config.FUZZER_WORK_DIR, config.FUZZER_INSTANCES)
 
+    early_crash = False
     try:
         fuzzer.start()
+
+        # start the fuzzer and poll for a crash or timeout
+        while not fuzzer.found_crash() and not fuzzer.timed_out():
+            time.sleep(config.CRASH_CHECK_INTERVAL)
+
+        # make sure to kill the fuzzers when we're done
+        fuzzer.kill()
+
     except EarlyCrash:
         l.info("binary crashed on dummy testcase, moving on...")
-        return 0
+        early_crash = True
 
-    # start the fuzzer and poll for a crash or timeout
-    while not fuzzer.found_crash() and not fuzzer.timed_out():
-        time.sleep(config.CRASH_CHECK_INTERVAL)
-
-    # make sure to kill the fuzzers when we're done
-    fuzzer.kill()
-
-    if fuzzer.found_crash():
+    if fuzzer.found_crash() or early_crash:
         redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
         redis_inst.publish("crashes", binary)
 
-    return fuzzer.found_crash()
+
+    return fuzzer.found_crash() or early_crash
