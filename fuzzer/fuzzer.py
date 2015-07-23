@@ -329,9 +329,10 @@ class Fuzzer(object):
         driller_queue_dir = os.path.join(self.out_dir, "driller", "queue")
         channel = "%s-generated" % self.binary_id
 
-        p = multiprocessing.Process(target=listen, args=(driller_queue_dir, channel,))
-        p.start()
-        return p
+        # ugly Popen hack to get around multiprocessing
+
+        args = [os.path.join(self.base, "listen.py"), driller_queue_dir, channel]
+        return subprocess.Popen(args)
 
     def _clear_redis(self):
         redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)

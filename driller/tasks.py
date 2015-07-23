@@ -11,6 +11,8 @@ l.setLevel("INFO")
 
 backend_url = "redis://%s:%d" % (config.REDIS_HOST, config.REDIS_PORT)
 app = Celery('tasks', broker=config.BROKER_URL, backend=backend_url)
+app.conf.CELERY_ROUTES = config.CELERY_ROUTES
+
 redis_pool = redis.ConnectionPool(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
 
 @app.task
