@@ -25,4 +25,4 @@ def drill(binary, input, fuzz_bitmap, exit_on_eof=False):
     try:
         return driller.drill()
     except Exception as e:
-        l.error("encountered %r exception when drilling into \"%s\"", binary)
+        l.error("encountered %r exception when drilling into \"%s\"", e, binary)
