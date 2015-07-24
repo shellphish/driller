@@ -42,7 +42,7 @@ def main(argv):
     for job in os.listdir(driller_dir):
         stats[job] = collect_stats(os.path.join(driller_dir, job))
 
-    pwned_list = '/cgc/output/pwned'
+    pwned_list = '/home/angr/store/output/pwned'
     old_pwned_here = False
     if os.path.exists(pwned_list):
         old_pwned_here = True
