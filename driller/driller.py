@@ -58,7 +58,7 @@ class Driller(object):
         # set of all the generated inputs
         self._generated       = set()
 
-        l.info("drilling started on %s" % time.ctime(self.start_time))
+        l.info("[%s] drilling started on %s", self.identifier, time.ctime(self.start_time))
 
         self.fuzz_bitmap_size = len(self.fuzz_bitmap)
 
@@ -234,8 +234,8 @@ class Driller(object):
             # make sure we actually have one active path at this point
             # in the case which we have no paths but a next_move, that's trouble
             if next_move is not None and len(trace_group.active) < 1:
-                l.error("taking the branch at %#x is unsatisfiable to angr" % next_move)
-                l.error("input was %r" % self.input)
+                l.error("[%s] taking the branch at %#x is unsatisfiable to angr", self.identifier, next_move)
+                l.error("[%s] input was %r", self.identifier, self.input)
                 raise DrillerMisfollowError
 
             # mimic AFL's indexing scheme
@@ -290,7 +290,7 @@ class Driller(object):
                 pass # angr steps through the same basic block trace when a syscall occurs
             else:
                 l.error("The qemu trace and the angr trace differ, this most likely suggests a bug")
-                l.error("qemu [0x%x], angr [0x%x]" % (bb_trace[bb_idx], current.addr))
+                l.error("[%s] qemu [0x%x], angr [0x%x]", self.identifier, bb_trace[bb_idx], current.addr)
                 raise DrillerMisfollowError
 
             # we don't need these, free them to save memory
@@ -355,7 +355,7 @@ class Driller(object):
             self._encounters.add((prev_addr, path.addr))
             self._add_to_catalogue(*key)
 
-        l.info("dumping input for %x -> %x" % (prev_addr, path.addr))
+        l.info("[%s] dumping input for %x -> %x", identifer, prev_addr, path.addr)
 
         self._generated.add((key, generated))
 
