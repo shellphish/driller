@@ -51,13 +51,14 @@ def main(argv):
     drilled_bins = crashed_bins = new_bins = 0
     for job in stats:
         print "%s... " % job,
-        new_pwn = " " 
+        new_bin = False
         if old_pwned_here and job[:-3] not in old_pwned:
-            new_pwn = "*" 
-            new_bins +=  1
+            new_bin = True
         if stats[job]['crashes'] > 0:
             crash_word = termcolor.colored("crash", "red", attrs=["bold"])
             crashed_bins += 1
+            if new_bin:
+                new_bins +=  1
         else:
             crash_word = " " * len("crash")
 
@@ -67,7 +68,7 @@ def main(argv):
         else:
             drill_word = " " * len("driller")
 
-        print "%s %s %s" % (crash_word, drill_word, new_pwn)
+        print "%s %s %s" % (crash_word, drill_word, "*" if new_bin else " ")
          
     
 
