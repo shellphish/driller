@@ -49,4 +49,7 @@ def fuzz(binary):
     if fuzzer.timed_out():
         l.info("timed out while fuzzing \"%s\"", binary)
 
+    # stop any drilling taking place on the binary
+    fuzzer.end_drilling()
+
     return fuzzer.found_crash() or early_crash

@@ -182,6 +182,16 @@ class Fuzzer(object):
         for _ in range(n):
             self.add_fuzzer()
 
+    def end_drilling(self):
+        '''
+        hacky way of telling the driller to stop, add a key to the redis store which the driller process will look for
+        '''
+
+        redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
+
+        # add True as a member
+        redis_inst.sadd("%s-finished" % self.binary_id, True)
+
     ### DICTIONARY CREATION
 
     def _create_dict(self):
@@ -312,11 +322,5 @@ class Fuzzer(object):
         # delete all the traced entries
         redis_inst.delete("%s-traced" % self.binary_id)
 
-        # delete all the crash-found entry
-        redis_inst.delete("%s-crash-found" % self.binary_id)
-
-    def report_crash_found(identifier):
-        redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
-
-        # add True as a member
-        redis_inst.sadd(identifier + "-crash-found", True)
+        # delete the finished entry
+        redis_inst.delete("%s-finished" % self.binary_id)
