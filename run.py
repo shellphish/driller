@@ -7,7 +7,7 @@ import logconfig
 logging.getLogger().setLevel("CRITICAL")
 logging.getLogger("driller.fuzz").setLevel("INFO")
 
-l = logging.getLogger("driller.run")
+l = logging.getLogger("driller")
 l.setLevel("INFO")
 
 import os
@@ -46,16 +46,18 @@ def start(binary_dir):
     for binary in jobs:
         fuzzer.tasks.fuzz.delay(binary)
 
-def listen():
+    l.info("listening for crashes..")
 
     redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
     p = redis_inst.pubsub()
 
     p.subscribe("crashes")
 
+    cnt = 1
     for msg in p.listen():
         if msg['type'] == 'message':
-            print "crash found for '%s'" % msg['data'] 
+            l.info("[%03d/%03d] crash found for '%s'", cnt, len(jobs), msg['data'])
+            cnt += 1
 
 def main(argv):
 
@@ -66,7 +68,6 @@ def main(argv):
     binary_dir = sys.argv[1]
 
     start(binary_dir)
-    listen()
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
