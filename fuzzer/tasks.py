@@ -46,5 +46,7 @@ def fuzz(binary):
         redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
         redis_inst.publish("crashes", binary)
 
+    if fuzzer.timed_out():
+        l.info("timed out while fuzzing \"%s\"", binary)
 
     return fuzzer.found_crash() or early_crash
