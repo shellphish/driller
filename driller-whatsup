@@ -48,10 +48,13 @@ def main(argv):
         old_pwned_here = True
         old_pwned = set(open(pwned_list).read().split('\n')[:-1])
 
-    drilled_bins = crashed_bins = 0
+    drilled_bins = crashed_bins = new_bins = 0
     for job in stats:
         print "%s... " % job,
-        new_pwn = "*" if old_pwned_here and job[:-3] not in old_pwned else " "
+        new_pwn = " " 
+        if old_pwned_here and job[:-3] not in old_pwned:
+            new_pwn = "*" 
+            new_bins +=  1
         if stats[job]['crashes'] > 0:
             crash_word = termcolor.colored("crash", "red", attrs=["bold"])
             crashed_bins += 1
@@ -70,9 +73,10 @@ def main(argv):
 
     crash_count = termcolor.colored("%d" % crashed_bins, "red", attrs=["bold"])
     drill_count = termcolor.colored("%d" % drilled_bins, "green", attrs=["bold"])
+    new_count   = termcolor.colored("%d" % new_bins, "yellow", attrs=["bold"])
 
     print 
-    print "crashed... %s  drilled... %s" % (crash_count, drill_count)
+    print "crashed... %s  drilled... %s  new... %s" % (crash_count, drill_count, new_count)
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
