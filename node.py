@@ -32,7 +32,7 @@ def driller_node(n, outfile, errfile):
 
     # set a memory limit if requested
     if nodeprofile.MEM_LIMIT is not None:
-        l.info("setting memory limit to %d bytes", nodeprofile.MEM_LIMIT)
+        l.info("setting memory limit to %d bytes", nodeprofile.MEM_LIMIT[0])
         resource.setrlimit(resource.RLIMIT_AS, nodeprofile.MEM_LIMIT)
 
     # verify that config.QEMU_DIR is sane
