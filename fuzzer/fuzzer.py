@@ -141,17 +141,18 @@ class Fuzzer(object):
 
         # collect stats into dictionary
         stats = {}
-        for fuzzer_dir in os.listdir(self.out_dir):
-            stat_path = os.path.join(self.out_dir, fuzzer_dir, "fuzzer_stats")
-            if os.path.isfile(stat_path):
-                stats[fuzzer_dir] = {}
+        if os.path.isdir(self.out_dir):
+            for fuzzer_dir in os.listdir(self.out_dir):
+                stat_path = os.path.join(self.out_dir, fuzzer_dir, "fuzzer_stats")
+                if os.path.isfile(stat_path):
+                    stats[fuzzer_dir] = {}
 
-                with open(stat_path, "rb") as f:
-                    stat_blob = f.read()
-                    stat_lines = stat_blob.split("\n")[:-1]
-                    for stat in stat_lines:
-                        key, val = stat.split(":")
-                        stats[fuzzer_dir][key.strip()] = val
+                    with open(stat_path, "rb") as f:
+                        stat_blob = f.read()
+                        stat_lines = stat_blob.split("\n")[:-1]
+                        for stat in stat_lines:
+                            key, val = stat.split(":")
+                            stats[fuzzer_dir][key.strip()] = val
 
         return stats
 
