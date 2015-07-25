@@ -355,7 +355,7 @@ class Driller(object):
             self._encounters.add((prev_addr, path.addr))
             self._add_to_catalogue(*key)
 
-        l.info("[%s] dumping input for %x -> %x", identifer, prev_addr, path.addr)
+        l.info("[%s] dumping input for %x -> %x", self.identifier, prev_addr, path.addr)
 
         self._generated.add((key, generated))
 
