@@ -43,7 +43,7 @@ def driller_node():
         return 1
 
     l.info("spinning up a driller node with %d workers", n)
-    args = ["celery", "-A", "driller.tasks", "worker", "-c", str(n), "-Q", "driller", "--loglevel=info"]
+    args = ["celery", "-A", "driller.tasks", "worker", "-c", str(n), "-Q", "driller", "--loglevel=info", "-Ofair"]
 
     os.execvp(args[0], args)
 
