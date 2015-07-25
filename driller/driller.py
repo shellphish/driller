@@ -60,6 +60,10 @@ class Driller(object):
         # set of all the generated inputs
         self._generated       = set()
 
+        # set the memory limit specified in the config
+        if config.MEM_LIMIT is not None:
+            resources.setrlimit((config.MEM_LIMIT, config.MEM_LIMIT))
+
         l.info("[%s] drilling started on %s", self.identifier, time.ctime(self.start_time))
 
         self.fuzz_bitmap_size = len(self.fuzz_bitmap)

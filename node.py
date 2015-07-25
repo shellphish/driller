@@ -30,11 +30,6 @@ def binary_dir_sane():
 
 def driller_node(n, outfile, errfile):
 
-    # set a memory limit if requested
-    if nodeprofile.MEM_LIMIT is not None:
-        l.info("setting memory limit to %d bytes", nodeprofile.MEM_LIMIT[0])
-        resource.setrlimit(resource.RLIMIT_AS, nodeprofile.MEM_LIMIT)
-
     # verify that config.QEMU_DIR is sane
     if not os.path.isdir(config.QEMU_DIR):
         l.error("the qemu directory specified in the config is not a directory")

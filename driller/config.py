@@ -20,6 +20,8 @@ BINARY_DIR="/cgc/binaries/"
 # how long to drill before giving up in seconds
 DRILL_TIMEOUT=60 * 15 # 15 minutes
 
+MEM_LIMIT=8 * 1024 * 1024 * 1024
+
 ### Fuzzer options
 
 # how often to check for crashes in seconds
