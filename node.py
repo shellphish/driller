@@ -2,6 +2,7 @@
 
 import os
 import sys
+import resource
 import subprocess
 import nodeprofile
 import driller.config as config
@@ -28,6 +29,11 @@ def binary_dir_sane():
     return True
 
 def driller_node(n, outfile, errfile):
+
+    # set a memory limit if requested
+    if nodeprofile.MEM_LIMIT is not None:
+        l.info("setting memory limit to %d bytes", nodeprofile.MEM_LIMIT)
+        resource.setrlimit(resource.RLIMIT_AS, nodeprofile.MEM_LIMIT)
 
     # verify that config.QEMU_DIR is sane
     if not os.path.isdir(config.QEMU_DIR):
