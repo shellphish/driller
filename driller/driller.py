@@ -231,7 +231,7 @@ class Driller(object):
                 return
 
             # exit if we timed_out
-            if self.timed_out():
+            if self._timed_out():
                 return
 
             # move the transition which the dynamic trace didn't encounter to the 'missed' stash
