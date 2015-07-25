@@ -6,14 +6,15 @@ import angr
 import archinfo
 import simuvex
 
-import cPickle as pickle
-import functools
-from itertools import islice, izip
-import multiprocessing
 import os
-import subprocess
-import tempfile
 import time
+import resource
+import functools
+import tempfile
+import subprocess
+import multiprocessing
+import cPickle as pickle
+from itertools import islice, izip
 
 import config
 
@@ -62,7 +63,7 @@ class Driller(object):
 
         # set the memory limit specified in the config
         if config.MEM_LIMIT is not None:
-            resources.setrlimit(resource.RLIMIT_AS, (config.MEM_LIMIT, config.MEM_LIMIT))
+            resource.setrlimit(resource.RLIMIT_AS, (config.MEM_LIMIT, config.MEM_LIMIT))
 
         l.info("[%s] drilling started on %s", self.identifier, time.ctime(self.start_time))
 
