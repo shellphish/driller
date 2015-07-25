@@ -4,7 +4,7 @@ REDIS_PORT=6379
 REDIS_DB=1
 
 ### Celery Options
-BROKER_URL="amqp://guest:guest@localhost//"
+BROKER_URL="amqp://guest@localhost//"
 
 CELERY_ROUTES = {'fuzzer.tasks.fuzz': {'queue': 'fuzzer'}, 'driller.tasks.drill': {'queue': 'driller'}}
 
@@ -15,6 +15,10 @@ QEMU_DIR="driller-qemu"
 
 # directory containing the binaries, used by the driller node to find binaries
 BINARY_DIR="/cgc/binaries/"
+
+### Driller options
+# how long to drill before giving up in seconds
+DRILL_TIMEOUT=60 * 15 # 15 minutes
 
 ### Fuzzer options
 
