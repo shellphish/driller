@@ -2,7 +2,8 @@
 
 import os
 import sys
-import multiprocessing
+import subprocess
+import nodeprofile
 import driller.config as config
 
 import logging
@@ -10,7 +11,6 @@ import logconfig
 
 l = logging.getLogger("driller.node")
 l.setLevel("INFO")
-
 
 def check_exec(d, p):
     path = os.path.join(d, p)
@@ -27,8 +27,7 @@ def binary_dir_sane():
 
     return True
 
-def driller_node():
-    n = multiprocessing.cpu_count()
+def driller_node(n, outfile, errfile):
 
     # verify that config.QEMU_DIR is sane
     if not os.path.isdir(config.QEMU_DIR):
@@ -43,38 +42,31 @@ def driller_node():
         return 1
 
     l.info("spinning up a driller node with %d workers", n)
-    args = ["celery", "-A", "driller.tasks", "worker", "-c", str(n), "-Q", "driller", "--loglevel=info", "-Ofair"]
+    args = ["celery", "-A", "driller.tasks", "worker", "-c", str(n), "-Q", "driller", "--loglevel=info"]
 
-    os.execvp(args[0], args)
+    with open(outfile, "w") as o:
+        with open(errfile, "w") as e:
+            subprocess.Popen(args, stdout=o, stderr=e)
 
-def fuzzer_node():
-    n = multiprocessing.cpu_count()
-
-    n /= config.FUZZER_INSTANCES
+def fuzzer_node(n, outfile, errfile):
 
     if not binary_dir_sane():
         return 1
 
     l.info("spinning up a fuzzer node with %d workers", n)
+
     args = ["celery", "-A", "fuzzer.tasks", "worker", "-c", str(n), "-Q", "fuzzer", "--loglevel=info", "-Ofair"]
 
-    os.execvp(args[0], args)
+    with open(outfile, "w") as o:
+        with open(errfile, "w") as e:
+            subprocess.Popen(args, stdout=o, stderr=e)
 
 def main(argv):
 
-    if len(argv) < 2:
-        print "%s [driller|fuzzer]" % argv[0]
-        return 1
-
-    node_type = argv[1]
-
-    if node_type == "driller":
-        driller_node()
-    elif node_type == "fuzzer":
-        fuzzer_node()
-    else:
-        print "unknown node type specified"
-        return 1
+    if nodeprofile.DRILLER_WORKERS:
+        driller_node(nodeprofile.DRILLER_WORKERS, "driller-out.log", "driller-err.log")
+    if nodeprofile.FUZZER_WORKERS:
+        fuzzer_node(nodeprofile.FUZZER_WORKERS, "fuzzer-out.log", "fuzzer-err.log")
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
