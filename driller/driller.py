@@ -225,7 +225,13 @@ class Driller(object):
         trace_group.missed = [ ]
 
         while len(trace_group.active) > 0:
-            bb_cnt, next_move = self._windup_to_branch(trace_group, bb_trace, bb_cnt)
+            ret = self._windup_to_branch(trace_group, bb_trace, bb_cnt)
+        
+            # check time out
+            if ret is None:
+              return
+
+            bb_cnt, next_move = ret
 
             if len(trace_group.stashes['unconstrained']):
                 l.info("%d unconstrained paths spotted!" % len(trace_group.stashes['unconstrained']))
@@ -234,9 +240,6 @@ class Driller(object):
             if self.redis and self.redis.sismember(self.identifier + "-finished", True):
                 return
 
-            # exit if we timed_out
-            if self._timed_out():
-                return
 
             # move the transition which the dynamic trace didn't encounter to the 'missed' stash
             trace_group.stash_not_addr(next_move, to_stash='missed')
@@ -290,7 +293,10 @@ class Driller(object):
         while len(path_group.active) == 1:
             current = path_group.active[0]
 
-            # l.info("current at %#x", current.addr)
+            # really dumb way to check if we've timed out, this is the part of the code hit most fequently
+            # hopefully it doesn't slow us down too much
+            if self._timed_out():
+                return None
 
             if len(bb_trace[bb_idx:]) == 0:
                 return (bb_idx, None)
