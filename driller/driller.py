@@ -15,6 +15,8 @@ import subprocess
 import tempfile
 import time
 
+import config
+
 class DrillerEnvironmentError(Exception):
     pass
 
@@ -228,6 +230,10 @@ class Driller(object):
             if self.redis and self.redis.sismember(self.identifier + "-finished", True):
                 return
 
+            # exit if we timed_out
+            if self.timed_out():
+                return
+
             # move the transition which the dynamic trace didn't encounter to the 'missed' stash
             trace_group.stash_not_addr(next_move, to_stash='missed')
 
@@ -307,6 +313,9 @@ class Driller(object):
         return (bb_idx, bb_trace[bb_idx])
 
 ### UTILS
+
+    def _timed_out(self):
+        return (int(time.time()) - self.start_time) > config.DRILL_TIMEOUT
 
     def _set_simprocedures(self, project):
         from simprocedures import cgc_simprocedures
