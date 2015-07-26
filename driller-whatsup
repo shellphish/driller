@@ -77,7 +77,10 @@ def main(argv):
     new_count   = termcolor.colored("%d" % new_bins, "yellow", attrs=["bold"])
 
     print 
-    print "crashed... %s  drilled... %s  new... %s" % (crash_count, drill_count, new_count)
+    print "total...   %d" % len(stats)
+    print "crashed... %s" % crash_count
+    print "drilled... %s" % drill_count
+    print "new...     %s" % new_count
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
