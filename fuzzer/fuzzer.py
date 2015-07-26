@@ -19,21 +19,6 @@ l = logging.getLogger("driller.Fuzzer")
 class EarlyCrash(Exception):
     pass
 
-def hexescape(s):
-    '''
-    perform hex escaping on a raw string s
-    '''
-
-    out = [ ]
-    acceptable = string.letters + string.digits + " ."
-    for c in s:
-        if c not in acceptable:
-            out.append("\\x%02x" % ord(c))
-        else:
-            out.append(c)
-
-    return ''.join(out)
-
 class Fuzzer(object):
     ''' Fuzzer object, spins up a fuzzing job on a binary '''
 
@@ -58,23 +43,25 @@ class Fuzzer(object):
         # base of the driller project
         self.base = os.path.join(os.path.dirname(__file__), "..")
 
-        self.start_time    = int(time.time())
+        self.start_time       = int(time.time())
         # the path to AFL capable of calling driller
-        self.afl_path      = os.path.join(self.base, "driller-afl-fuzz")
+        self.afl_path         = os.path.join(self.base, "driller-afl-fuzz")
         # the AFL build path for afl-qemu-trace-*
-        self.afl_path_var  = os.path.join(self.base, "build", "afl")
+        self.afl_path_var     = os.path.join(self.base, "build", "afl")
         # path to the drill script
-        self.driller_path  = os.path.join(self.base, "drill.py")
+        self.driller_path     = os.path.join(self.base, "drill.py")
         # driller-qemu
-        self.qemu_dir      = os.path.join(self.base, config.QEMU_DIR)
+        self.qemu_dir         = os.path.join(self.base, config.QEMU_DIR)
+        # create_dict script
+        self.create_dict_path = os.path.join(self.base, "create_dict.py")
         # afl dictionary
-        self.dictionary    = os.path.join(self.job_dir, "%s.dict" % self.binary_id)
+        self.dictionary       = os.path.join(self.job_dir, "%s.dict" % self.binary_id)
         # processes spun up
-        self.procs         = [ ] 
+        self.procs            = [ ]
         # start the fuzzer ids at 0
-        self.fuzz_id       = 0
+        self.fuzz_id          = 0
         # set when fuzzers are running
-        self.alive         = False
+        self.alive            = False
 
         l.debug("self.start_time: %r" % self.start_time)
         l.debug("self.afl_path: %s" % self.afl_path)
@@ -100,13 +87,10 @@ class Fuzzer(object):
 
         # look for a dictionary, if one doesn't exist create it with angr
         if not os.path.isfile(self.dictionary):
-            try:
-                l.debug("creating a dictionary of string references found in the binary")
-                if not self._create_dict():
-                    l.warning("failed to create dictionary for binary \"%s\"", self.binary_id)
-                    self.dictionary = None
-            except Exception as e:
-                l.error("encountered %r exception when creating fuzzer dict for \"%s\"", e, self.binary_id)
+            # call out to another process to create the dictionary so we can
+            # limit it's memory
+            if not self._create_dict():
+                # no luck creating a dictionary
                 self.dictionary = None
 
         # set environment variable for the AFL_PATH
@@ -196,31 +180,16 @@ class Fuzzer(object):
     ### DICTIONARY CREATION
 
     def _create_dict(self):
-        b = angr.Project(self.binary_path)
-        cfg = b.analyses.CFG(keep_input_state=True, enable_advanced_backward_slicing=True)
 
-        string_references = [ ]
-        for f in cfg.function_manager.functions.values():
-            try:
-                string_references.append(f.string_references())
-            except ZeroDivisionError:
-                pass
+        l.debug("creating a dictionary of string references within binary \"%s\"",
+                self.binary_id)
 
-        string_references = sum(string_references, [])
+        args = [self.create_dict_path, self.binary_path, self.dictionary]
 
-        strings = [] if len(string_references) == 0 else zip(*string_references)[1]
+        p = subprocess.Popen(args)
+        retcode = p.wait()
 
-        if len(strings) > 0:
-            with open(self.dictionary, 'wb') as f:
-                for i, string in enumerate(strings):
-                    # AFL has a limit of 128 bytes per dictionary entries
-                    if len(string) <= 128:
-                        s = hexescape(string)
-                        f.write("driller_%d=\"%s\"\n" % (i, s))
-
-            return True
-
-        return False
+        return True if retcode == 0 else False
 
     ### BEHAVIOR TESTING
 
