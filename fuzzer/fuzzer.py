@@ -136,7 +136,7 @@ class Fuzzer(object):
                         stat_lines = stat_blob.split("\n")[:-1]
                         for stat in stat_lines:
                             key, val = stat.split(":")
-                            stats[fuzzer_dir][key.strip()] = val
+                            stats[fuzzer_dir][key.strip()] = val.strip()
 
         return stats
 
