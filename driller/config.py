@@ -18,7 +18,7 @@ BINARY_DIR="/cgc/binaries/"
 
 ### Driller options
 # how long to drill before giving up in seconds
-DRILL_TIMEOUT=60 * 15 # 15 minutes
+DRILL_TIMEOUT=60 * 60 # 60 minutes
 
 MEM_LIMIT=8 * 1024 * 1024 * 1024
 
