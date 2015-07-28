@@ -328,6 +328,7 @@ class Driller(object):
             # really dumb way to check if we've timed out, this is the part of the code hit most fequently
             # hopefully it doesn't slow us down too much
             if self._timed_out():
+                l.warning("[%s] timed out during trace", self.identifier)
                 return None
 
             if len(bb_trace[bb_idx:]) == 0:
@@ -357,7 +358,10 @@ class Driller(object):
 ### UTILS
 
     def _timed_out(self):
-        return (int(time.time()) - self.start_time) > config.DRILL_TIMEOUT
+        if config.DRILL_TIMEOUT is not None:
+            return (int(time.time()) - self.start_time) > config.DRILL_TIMEOUT
+        else: # if no timeout is specified we never time out
+            return False
 
     def _set_simprocedures(self, project):
         from simprocedures import cgc_simprocedures
