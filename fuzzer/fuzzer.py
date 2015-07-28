@@ -91,6 +91,7 @@ class Fuzzer(object):
             # limit it's memory
             if not self._create_dict():
                 # no luck creating a dictionary
+                l.warning("[%s] unable to create dictionary", self.binary_id)
                 self.dictionary = None
 
         # set environment variable for the AFL_PATH
