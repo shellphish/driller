@@ -340,6 +340,8 @@ class Driller(object):
             else:
                 l.error("The qemu trace and the angr trace differ, this most likely suggests a bug")
                 l.error("[%s] qemu [0x%x], angr [0x%x]", self.identifier, bb_trace[bb_idx], current.addr)
+                l.error("input was %r", self.input)
+                l.error("path_group was %r", path_group)
                 raise DrillerMisfollowError
 
             # we don't need these, free them to save memory
