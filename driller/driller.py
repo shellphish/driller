@@ -191,6 +191,35 @@ class Driller(object):
 
         return len(self._generated)
 
+    def _preconstrain_path(self, path):
+        '''
+        constrain stdin to be the input we're tracing
+        '''
+        self.preconstraints = [ ]
+        stdin = path.posix.get_file(0)
+
+        for b in self.input:
+            c = stdin.read(1) == path.BVV(b)
+            self.preconstraints.append(c)
+            path.se.state.add_constraints(c)
+
+        stdin.seek(0)
+
+    def _remove_preconstraints(self, path):
+        '''
+        remove constraints which forced path to take the path of our input
+        '''
+
+        new_constraints = [ ]
+
+        for c in path.state.se.constraints:
+            for pc in self.preconstraints:
+                c = c.replace(pc, path.state.se.true)
+            new_constraints.append(c)
+
+        path.state.se.constraints[:] = new_constraints
+        path.state.downsize()
+
     def _drill_input(self):
         '''
         symbolically step down a path, choosing branches based off a dynamic trace we took earlier.
@@ -212,6 +241,7 @@ class Driller(object):
         l.debug("input is %r", self.input)
 
         parent_path = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+        self._preconstrain_path(parent_path)
 
         # TODO: detect unconstrained paths
         trace_group = project.factory.path_group(parent_path, immutable=False, save_unconstrained=True)
@@ -270,6 +300,7 @@ class Driller(object):
                     l.debug("found %x -> %x transition" % transition)
 
                     if not hit and not self._has_encountered(transition):
+                        self._remove_preconstraints(path)
                         if path.state.satisfiable():
                             # we writeout the new input as soon as possible to allow other AFL slaves
                             # to work with it
