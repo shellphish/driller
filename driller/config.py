@@ -18,7 +18,7 @@ BINARY_DIR="/cgc/binaries/"
 
 ### Driller options
 # how long to drill before giving up in seconds
-DRILL_TIMEOUT=60 * 60 # 60 minutes
+DRILL_TIMEOUT=60 * 40 # 60 minutes
 
 MEM_LIMIT=8 * 1024 * 1024 * 1024
 
@@ -34,4 +34,4 @@ FUZZ_TIMEOUT=60 * 60 * 24
 FUZZER_INSTANCES=4
 
 # where the fuzzer should place it's results on the filesystem
-FUZZER_WORK_DIR="work"
+FUZZER_WORK_DIR="/dev/shm/work"
