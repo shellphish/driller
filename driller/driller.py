@@ -135,7 +135,10 @@ class Driller(object):
             p.communicate(self.input)
             p.wait()
 
-        trace = open(logfile, 'rb').read()
+        tfp = open(logfile, 'rb')
+        trace = tfp.read()
+        tfp.close()
+
         os.remove(logfile)
 
         addrs = [int(v.split('[')[1].split(']')[0], 16)
