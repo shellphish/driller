@@ -350,6 +350,7 @@ class Driller(object):
 
             previous = current.addr
             path_group.step()
+            path_group.stash(from_stash='unsat', to_stash='active')
 
         # this occurs when a path deadends, no need to keep tracing it
         if len(path_group.active) == 0 and len(path_group.deadended) > 0:
