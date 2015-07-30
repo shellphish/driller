@@ -1,7 +1,5 @@
-* have configurable time out for driller jobs
+* solve every single state transition regardless whether or not we have seen it before, use taint tracking to figure out which preconstraints need to be removed
 
-* implement concrete tracing
+* implement qemu backend
 
-* make it easy to log errors and the associated binary which occur during drilling
-
-* make it easier to distribute fuzzers and drillers among a fleet of machines
+* implement path caching
