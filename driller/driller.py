@@ -259,7 +259,11 @@ class Driller(object):
         trace_group.missed = [ ]
 
         while len(trace_group.active) > 0:
+
             ret = self._windup_to_branch(trace_group, bb_trace, bb_cnt)
+
+            for errored in trace_group.errored:
+                l.error("[%s] spotted errored path %x with %s", self.identifier, errored.addr, errored.error)
         
             # check time out
             if ret is None:
