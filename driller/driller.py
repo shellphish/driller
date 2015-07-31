@@ -8,6 +8,7 @@ import simuvex
 
 import os
 import time
+import signal
 import resource
 import functools
 import tempfile
@@ -190,6 +191,9 @@ class Driller(object):
 
         self.trace = self._trace()
 
+        # set up alarm for timeouts
+        signal.alarm(config.DRILL_TIMEOUT)
+
         self._drill_input()
 
         return len(self._generated)
@@ -265,10 +269,6 @@ class Driller(object):
             for errored in trace_group.errored:
                 l.error("[%s] spotted errored path %x with %s", self.identifier, errored.addr, errored.error)
         
-            # check time out
-            if ret is None:
-              return
-
             bb_cnt, next_move = ret
 
             if len(trace_group.stashes['unconstrained']):
@@ -331,12 +331,6 @@ class Driller(object):
 
         while len(path_group.active) == 1:
             current = path_group.active[0]
-
-            # really dumb way to check if we've timed out, this is the part of the code hit most fequently
-            # hopefully it doesn't slow us down too much
-            if self._timed_out():
-                l.warning("[%s] timed out during trace", self.identifier)
-                return None
 
             if len(bb_trace[bb_idx:]) == 0:
                 return (bb_idx, None)
