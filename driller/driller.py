@@ -7,8 +7,10 @@ import archinfo
 import simuvex
 
 import os
+import cle
 import time
 import signal
+import struct
 import resource
 import functools
 import tempfile
@@ -237,10 +239,17 @@ class Driller(object):
         # grab the dynamic basic block trace
         bb_trace = self.trace
 
+        # used for following the dynamic trace
+        bb_cnt = 0
+
         l.debug("drilling into %r" % self.input)
         l.debug("basic block trace consists of %d addresses" % len(bb_trace))
 
-        project = angr.Project(self.binary)
+        eip, project = self._load_backed()
+
+        # wind up bb_trace to point to the eip extracted
+        while bb_trace[bb_cnt] != eip + 2:
+            bb_cnt += 1
 
         # apply special simprocedures
         self._set_simprocedures(project)
@@ -253,8 +262,8 @@ class Driller(object):
         # TODO: detect unconstrained paths
         trace_group = project.factory.path_group(parent_path, immutable=False, save_unconstrained=True)
 
-        # used for following the dynamic trace
-        bb_cnt = 0
+        # step once forward to do the read
+        trace_group.step()
 
         # used for finding the right index in the fuzz_bitmap
         prev_loc = 0
@@ -277,7 +286,6 @@ class Driller(object):
             # check here to see if a crash has been found
             if self.redis and self.redis.sismember(self.identifier + "-finished", True):
                 return
-
 
             # move the transition which the dynamic trace didn't encounter to the 'missed' stash
             trace_group.stash_not_addr(next_move, to_stash='missed')
@@ -360,6 +368,125 @@ class Driller(object):
         return (bb_idx, bb_trace[bb_idx])
 
 ### UTILS
+
+    def _load_backed(self):
+        '''
+        load an angr project with initial state seeded by QEMU
+
+        :param binary: the binary to load
+        :return: angr project
+        '''
+
+        # get the backings, call out to qemu
+
+        bfd, backing = tempfile.mkstemp(prefix="driller-backing-", dir="/dev/shm/")
+        os.close(bfd)
+
+        args = [os.path.join(self.qemu_dir, "driller-qemu-cgc"), "-predump", backing, self.binary]
+        with open("/dev/null", "wb") as devnull:
+            p = subprocess.Popen(args, stdout=devnull)
+            p.wait()
+
+        # parse out the predump file
+        memory = {}
+        regs = {}
+        with open(backing, "rb") as f:
+            while len(regs) == 0:
+                tag = f.read(4)
+                if tag != "REGS":
+                    start = struct.unpack("<I", tag)[0]
+                    end = struct.unpack("<I", f.read(4))[0]
+                    length = struct.unpack("<I", f.read(4))[0]
+                    content = f.read(length)
+                    memory[start] = content
+                else:
+                    # general purpose regs
+                    regs['eax'] = struct.unpack("<I", f.read(4))[0]
+                    regs['ebx'] = struct.unpack("<I", f.read(4))[0]
+                    regs['ecx'] = struct.unpack("<I", f.read(4))[0]
+                    regs['edx'] = struct.unpack("<I", f.read(4))[0]
+                    regs['esi'] = struct.unpack("<I", f.read(4))[0]
+                    regs['edi'] = struct.unpack("<I", f.read(4))[0]
+                    regs['ebp'] = struct.unpack("<I", f.read(4))[0]
+                    regs['esp'] = struct.unpack("<I", f.read(4))[0]
+
+                    # d flag
+                    regs['d']   = struct.unpack("<I", f.read(4))[0]
+
+                    # eip
+                    # adjust eip
+                    regs['eip'] = struct.unpack("<I", f.read(4))[0] - 2
+
+                    # fp regs
+                    regs['st0'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['st0'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['st1'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['st1'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['st2'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['st2'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['st3'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['st3'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['st4'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['st4'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['st5'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['st5'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['st6'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['st6'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['st7'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['st7'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    # fp tags
+                    regs['fpu_t0'] = struct.unpack("B", f.read(1))[0]
+                    regs['fpu_t1'] = struct.unpack("B", f.read(1))[0]
+                    regs['fpu_t2'] = struct.unpack("B", f.read(1))[0]
+                    regs['fpu_t3'] = struct.unpack("B", f.read(1))[0]
+                    regs['fpu_t4'] = struct.unpack("B", f.read(1))[0]
+                    regs['fpu_t5'] = struct.unpack("B", f.read(1))[0]
+                    regs['fpu_t6'] = struct.unpack("B", f.read(1))[0]
+                    regs['fpu_t7'] = struct.unpack("B", f.read(1))[0]
+
+                    # ftop
+                    regs['ftop'] = struct.unpack("<I", f.read(4))[0]
+
+                    # sseround
+                    regs['mxcsr'] = struct.unpack("<I", f.read(4))[0]
+
+                    regs['xmm0'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['xmm0'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['xmm1'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['xmm1'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['xmm2'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['xmm2'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['xmm3'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['xmm3'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['xmm4'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['xmm4'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['xmm5'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['xmm5'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['xmm6'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['xmm6'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+                    regs['xmm7'] = struct.unpack("<Q", f.read(8))[0]
+                    regs['xmm7'] |= struct.unpack("<Q", f.read(8))[0] << 64
+
+        os.remove(backing)
+
+
+        ld = cle.Loader(self.binary, main_opts={'backend': cle.loader.BackedCGC, 'memory_backer': memory, 'register_backer': regs, 'writes_backer': []})
+        return regs['eip'], angr.Project(ld)
 
     def _timed_out(self):
         if config.DRILL_TIMEOUT is not None:
