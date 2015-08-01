@@ -194,7 +194,8 @@ class Driller(object):
         self.trace = self._trace()
 
         # set up alarm for timeouts
-        signal.alarm(config.DRILL_TIMEOUT)
+        if config.DRILL_TIMEOUT is not None:
+            signal.alarm(config.DRILL_TIMEOUT)
 
         self._drill_input()
 
