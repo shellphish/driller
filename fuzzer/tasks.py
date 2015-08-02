@@ -24,7 +24,19 @@ def fuzz(binary):
     l.info("beginning to fuzz \"%s\"", binary)
 
     binary_path = os.path.join(config.BINARY_DIR, binary)
-    fuzzer = Fuzzer(binary_path, config.FUZZER_WORK_DIR, config.FUZZER_INSTANCES)
+
+    # look for a pcap
+    pcap_path = os.path.join(config.BINARY_DIR, "%s.pcap" % binary)
+    if not os.path.isfile(pcap_path):
+        l.warning("unable to find pcap file, will seed fuzzer with the default")
+        pcap_inputs = None
+    else:
+        pcap_inputs = pcap.process(pcap_path)
+
+    if pcap_inputs is None:
+        fuzzer = Fuzzer(binary_path, config.FUZZER_WORK_DIR, config.FUZZER_INSTANCES)
+    else:
+        fuzzer = Fuzzer(binary_path, config.FUZZER_WORK_DIR, config.FUZZER_INSTANCES, pcap_inputs)
 
     early_crash = False
     try:

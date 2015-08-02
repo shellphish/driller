@@ -1,3 +1,4 @@
 termcolor
 redis
 celery
+dpkt
