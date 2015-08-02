@@ -22,16 +22,18 @@ class EarlyCrash(Exception):
 class Fuzzer(object):
     ''' Fuzzer object, spins up a fuzzing job on a binary '''
 
-    def __init__(self, binary_path, work_dir, afl_count):
+    def __init__(self, binary_path, work_dir, afl_count, seeds=["fuzz"]):
         '''
         :param binary_path: path to the binary to fuzz
         :param work_dir: the work directory which contains fuzzing jobs, our job directory will go here
         :param afl_count: number of AFL jobs total to spin up for the binary
+        :param seeds: list of inputs to seed fuzzing with
         '''
 
         self.binary_path = binary_path
         self.work_dir    = work_dir
         self.afl_count   = afl_count
+        self.seeds       = seeds
 
         # binary id
         self.binary_id = os.path.basename(binary_path)
@@ -82,8 +84,7 @@ class Fuzzer(object):
             l.warning("unable to create in_dir \"%s\"", self.in_dir)
 
         # populate the input directory
-        with open(os.path.join(self.in_dir, "fuzz"), "wb") as f:
-            f.write("fuzz")
+        self._initialize_seeds()
 
         # look for a dictionary, if one doesn't exist create it with angr
         if not os.path.isfile(self.dictionary):
@@ -177,6 +178,22 @@ class Fuzzer(object):
 
         # add True as a member
         redis_inst.sadd("%s-finished" % self.binary_id, True)
+
+    ### FUZZ PREP
+
+    def _initialize_seeds(self):
+        '''
+        populate the input directory with the seeds specified
+        '''
+
+        assert(len(self.seeds) > 0, "Must specify at least one seed to start fuzzing with")
+
+        l.debug("initializing seeds %r", self.seeds)
+
+        template = os.path.join(self.in_dir, "seed-%d")
+        for i, seed in enumerate(self.seeds):
+            with open(template % i, "wb") as f:
+                f.write(seed)
 
     ### DICTIONARY CREATION
 
