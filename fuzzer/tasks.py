@@ -5,6 +5,7 @@ from .fuzzer import Fuzzer, EarlyCrash
 
 import os
 import time
+import pcap
 import redis
 import logging
 import cPickle as pickle
