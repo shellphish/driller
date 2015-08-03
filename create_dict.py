@@ -3,6 +3,7 @@
 import sys
 import angr
 import string
+import signal
 import logging
 import resource
 import driller.config as config
@@ -65,6 +66,11 @@ def main(argv):
     if config.MEM_LIMIT is not None:
         resource.setrlimit(resource.RLIMIT_AS, 
                            (config.MEM_LIMIT, config.MEM_LIMIT))
+
+    # place a timeout so we always get some time to fuzz, even if we encounter
+    # an infinite loop CFG bug
+    if config.DICTIONARY_TIMEOUT is not None:
+        signal.alarm(config.DICTIONARY_TIMEOUT)
 
     return int(not create(binary, outfile))
 
