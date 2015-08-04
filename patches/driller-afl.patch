@@ -1,5 +1,5 @@
 --- /home/nick/Projects/junk/safe/afl-1.83b/afl-fuzz.c	2015-06-12 00:50:07.000000000 -0700
-+++ afl-fuzz.c	2015-07-23 14:01:21.700770307 -0700
++++ afl-fuzz.c	2015-08-03 18:53:24.179840305 -0700
 @@ -59,6 +59,8 @@
  #  include <sys/sysctl.h>
  #endif /* __APPLE__ || __FreeBSD__ || __OpenBSD__ */
@@ -85,7 +85,17 @@
      u8* fn = alloc_printf("%s/%s", in_dir, nl[i]->d_name);
      u8* dfn = alloc_printf("%s/.state/deterministic_done/%s", in_dir, nl[i]->d_name);
  
-@@ -2686,7 +2697,7 @@
+@@ -2265,7 +2276,8 @@
+ 
+   if (WIFSIGNALED(status) && !stop_soon) {
+     kill_signal = WTERMSIG(status);
+-    return FAULT_CRASH;
++    if ((kill_signal == SIGSEGV) || (kill_signal == SIGILL))
++        return FAULT_CRASH;
+   }
+ 
+   /* A somewhat nasty hack for MSAN, which doesn't support abort_on_error and
+@@ -2686,7 +2698,7 @@
  
  static void link_or_copy(u8* old_path, u8* new_path) {
  
@@ -94,7 +104,7 @@
    s32 sfd, dfd;
    u8* tmp;
  
-@@ -2696,7 +2707,7 @@
+@@ -2696,7 +2708,7 @@
    if (sfd < 0) PFATAL("Unable to open '%s'", old_path);
  
    dfd = open(new_path, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -103,7 +113,7 @@
  
    tmp = ck_alloc(64 * 1024);
  
-@@ -3691,7 +3702,7 @@
+@@ -3691,7 +3703,7 @@
  
    sprintf(tmp + banner_pad, "%s " cLCY VERSION cLGN
            " (%s)",  crash_mode ? cPIN "peruvian were-rabbit" : 
@@ -112,7 +122,7 @@
  
    SAYF("\n%s\n\n", tmp);
  
-@@ -3948,6 +3959,8 @@
+@@ -3948,6 +3960,8 @@
         "  variable : %s%-10s " bSTG bV "\n", tmp, queued_variable ? cLRD : cNOR,
        no_var_check ? (u8*)"n/a" : DI(queued_variable));
  
@@ -121,7 +131,7 @@
    if (!bytes_trim_out) {
  
      sprintf(tmp, "n/a, ");
-@@ -3979,9 +3992,15 @@
+@@ -3979,9 +3993,15 @@
  
    }
  
@@ -138,7 +148,7 @@
    /* Provide some CPU utilization stats. */
  
    if (cpu_core_count) {
-@@ -6284,6 +6303,12 @@
+@@ -6284,6 +6304,12 @@
  
      if (sd_ent->d_name[0] == '.' || !strcmp(sync_id, sd_ent->d_name)) continue;
  
@@ -151,7 +161,7 @@
      /* Skip anything that doesn't have a queue/ subdirectory. */
  
      qd_path = alloc_printf("%s/%s/queue", sync_dir, sd_ent->d_name);
-@@ -6517,8 +6542,13 @@
+@@ -6517,8 +6543,13 @@
  
  #ifndef __APPLE__
  
@@ -166,7 +176,7 @@
  
  #else
  
-@@ -6655,6 +6685,11 @@
+@@ -6655,6 +6686,11 @@
         "  -n            - fuzz without instrumentation (dumb mode)\n"
         "  -x dir        - optional fuzzer dictionary (see README)\n\n"
  
@@ -178,7 +188,7 @@
         "Other stuff:\n\n"
  
         "  -T text       - text banner to show on the screen\n"
-@@ -7165,21 +7200,35 @@
+@@ -7165,21 +7201,35 @@
  
  static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
  
@@ -219,7 +229,7 @@
  
      if (access(cp, X_OK))
        FATAL("Unable to find '%s'", tmp);
-@@ -7196,7 +7245,8 @@
+@@ -7196,7 +7246,8 @@
  
      *rsl = 0;
  
@@ -229,7 +239,7 @@
      ck_free(own_copy);
  
      if (!access(cp, X_OK)) {
-@@ -7208,9 +7258,11 @@
+@@ -7208,9 +7259,11 @@
  
    } else ck_free(own_copy);
  
@@ -243,7 +253,7 @@
      return new_argv;
  
    }
-@@ -7257,6 +7309,48 @@
+@@ -7257,6 +7310,48 @@
  
  }
  
@@ -292,7 +302,7 @@
  
  /* Main entry point */
  
-@@ -7274,7 +7368,7 @@
+@@ -7274,7 +7369,7 @@
  
    doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
  
@@ -301,7 +311,7 @@
  
      switch (opt) {
  
-@@ -7293,6 +7387,17 @@
+@@ -7293,6 +7388,17 @@
          out_dir = optarg;
          break;
  
@@ -319,7 +329,7 @@
        case 'M':
  
          force_deterministic = 1;
-@@ -7470,7 +7575,7 @@
+@@ -7470,7 +7576,7 @@
    setup_shm();
  
    setup_dirs_fds();
@@ -328,7 +338,7 @@
    load_auto();
  
    pivot_inputs();
-@@ -7487,6 +7592,7 @@
+@@ -7487,6 +7593,7 @@
  
    start_time = get_cur_time();
  
@@ -336,7 +346,7 @@
    if (qemu_mode)
      use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
    else
-@@ -7557,6 +7663,20 @@
+@@ -7557,6 +7664,20 @@
  
      skipped_fuzz = fuzz_one(use_argv);
  
