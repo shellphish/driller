@@ -223,7 +223,7 @@ class Tracer(object):
             # did a crash occur?
             if ret < 0:
                 if abs(ret) == signal.SIGSEGV or abs(ret) == signal.SIGILL:
-                    l.info("input caused a crash (signal %d) during dynamic tracing")
+                    l.info("input caused a crash (signal %d) during dynamic tracing", abs(ret))
                     l.info("entering crash mode")
                     self.crash_mode = True
             
