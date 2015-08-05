@@ -179,6 +179,30 @@ class Fuzzer(object):
         # add True as a member
         redis_inst.sadd("%s-finished" % self.binary_id, True)
 
+    def crashes(self):
+        '''
+        retrieve the crashes discovered by AFL
+        :return: a list of strings which are crashing inputs
+        '''
+
+        if not self.found_crash():
+            return [ ]
+
+        crashes = set()
+        for fuzzer in os.listdir(self.out_dir):
+            crashes_dir = os.path.join(self.out_dir, fuzzer, "crashes")
+
+            if not os.path.isdir(crashes_dir):
+                # if this entry doesn't have a crashes directory, just skip it
+                continue
+
+            for crash in os.listdir(crashes_dir):
+                crash_path = os.path.join(crashes_dir, crash)
+                with open(crash_path, 'rb') as f:
+                    crashes.add(f.read())
+
+        return list(crashes)
+
     ### FUZZ PREP
 
     def _initialize_seeds(self):
