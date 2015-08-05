@@ -197,6 +197,10 @@ class Fuzzer(object):
                 continue
 
             for crash in os.listdir(crashes_dir):
+                if crash == "README.txt":
+                    # skip the readme entry
+                    continue
+
                 crash_path = os.path.join(crashes_dir, crash)
                 with open(crash_path, 'rb') as f:
                     crashes.add(f.read())
