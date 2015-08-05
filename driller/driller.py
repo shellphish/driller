@@ -2,12 +2,14 @@ import logging
 
 l = logging.getLogger("driller.Driller")
 
+import tracer
+
+import cle
 import angr
-import archinfo
 import simuvex
+import archinfo
 
 import os
-import cle
 import time
 import signal
 import struct
@@ -18,6 +20,8 @@ import subprocess
 import multiprocessing
 import cPickle as pickle
 from itertools import islice, izip
+
+from simprocedures import cgc_simprocedures
 
 import config
 
@@ -32,15 +36,12 @@ class Driller(object):
     Driller object, symbolically follows an input looking for new state transitions
     '''
 
-    def __init__(self, binary, input, fuzz_bitmap, qemu_dir, redis=None, exit_on_eof=False):
+    def __init__(self, binary, input, fuzz_bitmap, redis=None):
         '''
         :param binary: the binary to be traced
         :param input: input string to feed to the binary
         :param fuzz_bitmap: AFL's bitmap of state transitions
-        :param qemu_dir: path to driller qemu binaries
         :param redis: redis.Redis instance for coordinating multiple Driller instances
-        :param exit_on_eof: whether QEMU should exit if EOF is received, used for tracing binaries
-                            which don't exit themselves
         '''
 
         self.binary      = binary
@@ -48,12 +49,11 @@ class Driller(object):
         self.identifier  = os.path.basename(binary)
         self.input       = input
         self.fuzz_bitmap = fuzz_bitmap
-        self.qemu_dir    = qemu_dir
         self.redis       = redis
-        self.exit_on_eof = exit_on_eof
 
-        # set of the files which have already been traced
-        self.traced           = set()
+        self.base = os.path.join(os.path.dirname(__file__), "..")
+
+        self.qemu_dir = os.path.join(self.base, "driller-qemu")
 
         # set of encountered basic block transition
         self._encounters = set()
@@ -76,10 +76,6 @@ class Driller(object):
         if not self._sane():
             l.error("[%s] environment or parameters are unfit for a driller run", self.identifier)
             raise DrillerEnvironmentError
-
-        # basic block trace, initialized in .drill
-        self.trace = None
-
 
 ### ENVIRONMENT CHECKS AND OBJECT SETUP
          
@@ -113,67 +109,6 @@ class Driller(object):
 
         return True
 
-    def _trace(self):
-        qemu_bin = "driller-qemu-%s" % self._arch_string()
-        qemu_path = os.path.join(self.qemu_dir, qemu_bin)
-
-        # quickly validate that the qemu binary exists
-        if not os.access(qemu_path, os.X_OK):
-            l.error("QEMU binary for target's arch either does not exist or is not executable")
-            raise DrillerEnvironmentError
-
-        # generate a logfile for the trace, will be thrown away shortly
-        logfd, logfile = tempfile.mkstemp(prefix="driller-trace-", dir="/dev/shm/")
-        os.close(logfd)
-
-        # args to Popen
-        args = [qemu_path]
-        if self.exit_on_eof:
-            args += ["-eof-exit"]
-        args += ["-d", "exec", "-D", logfile, self.binary]
-
-        with open('/dev/null', 'wb') as devnull:
-            # run QEMU with the input file as stdin
-            p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=devnull)
-            p.communicate(self.input)
-            p.wait()
-
-        tfp = open(logfile, 'rb')
-        trace = tfp.read()
-        tfp.close()
-
-        os.remove(logfile)
-
-        addrs = [int(v.split('[')[1].split(']')[0], 16)
-                 for v in trace.split('\n')
-                 if v.startswith('Trace')]
-
-        # update encounters with known state transitions
-        self._encounters.update(izip(addrs, islice(addrs, 1, None)))
-
-        return addrs
-
-    def _arch_string(self):
-
-        # temporary angr project for getting loader options
-        p = angr.Project(self.binary)
-        ld_arch = p.loader.main_bin.arch
-        ld_type = p.loader.main_bin.filetype
-
-        # what's the binary's format?
-        if ld_type == "cgc":
-            arch = "cgc"
-
-        elif ld_type == "elf":
-            if ld_arch == archinfo.arch_amd64.ArchAMD64:
-                arch = "x86_64"
-            if ld_arch == archinfo.arch_x86.ArchX86:
-                arch = "i386"
-        else:
-            l.error("binary is of an unsupported architecture")
-            raise NotImplementedError
-
-        return arch
 
 
 ### DRILLING
@@ -191,8 +126,6 @@ class Driller(object):
         if self.redis:
             self.redis.sadd(self.identifier + '-traced', self.input)
 
-        self.trace = self._trace()
-
         # set up alarm for timeouts
         if config.DRILL_TIMEOUT is not None:
             signal.alarm(config.DRILL_TIMEOUT)
@@ -201,307 +134,61 @@ class Driller(object):
 
         return len(self._generated)
 
-    def _preconstrain_path(self, path):
-        '''
-        constrain stdin to be the input we're tracing
-        '''
-        self.preconstraints = [ ]
-        stdin = path.posix.get_file(0)
-
-        for b in self.input:
-            c = stdin.read(1) == path.BVV(b)
-            self.preconstraints.append(c)
-            path.se.state.add_constraints(c)
-
-        stdin.seek(0)
-
-    def _remove_preconstraints(self, path):
-        '''
-        remove constraints which forced path to take the path of our input
-        '''
-
-        new_constraints = [ ]
-
-        for c in path.state.se.constraints:
-            for pc in self.preconstraints:
-                c = c.replace(pc, path.state.se.true)
-            new_constraints.append(c)
-
-        path.state.se.constraints[:] = new_constraints
-        path.state.downsize()
-
     def _drill_input(self):
         '''
-        symbolically step down a path, choosing branches based off a dynamic trace we took earlier.
-        if there's any branches (or state transitions really) which weren't taken by any of the inputs
-        we concretize an input to reach those branches (or state transitions really).
+        symbolically step down a path with a tracer, trying to concretize inputs for unencountered
+        state transitions.
         '''
 
-        # grab the dynamic basic block trace
-        bb_trace = self.trace
+        # initialize the tracer
+        t = tracer.Tracer(self.binary, self.input, cgc_simprocedures)
 
-        # used for following the dynamic trace
-        bb_cnt = 0
+        # update encounters with known state transitions
+        self._encounters.update(izip(t.trace, islice(t.trace, 1, None)))
 
         l.debug("drilling into %r" % self.input)
-        l.debug("basic block trace consists of %d addresses" % len(bb_trace))
-
-        eip, project = self._load_backed()
-
-        # wind up bb_trace to point to the eip extracted
-        while bb_trace[bb_cnt] != eip + 2:
-            bb_cnt += 1
-
-        # apply special simprocedures
-        self._set_simprocedures(project)
-
         l.debug("input is %r", self.input)
-
-        parent_path = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
-        self._preconstrain_path(parent_path)
-
-        # TODO: detect unconstrained paths
-        trace_group = project.factory.path_group(parent_path, immutable=False, save_unconstrained=True)
-
-        # step once forward to do the read
-        trace_group.step()
 
         # used for finding the right index in the fuzz_bitmap
         prev_loc = 0
 
-        # initialize the missed stash in the trace_group path group
-        trace_group.missed = [ ]
-
-        while len(trace_group.active) > 0:
-
-            ret = self._windup_to_branch(trace_group, bb_trace, bb_cnt)
-
-            for errored in trace_group.errored:
-                l.error("[%s] spotted errored path %x with %s", self.identifier, errored.addr, errored.error)
-        
-            bb_cnt, next_move = ret
-
-            if len(trace_group.stashes['unconstrained']):
-                l.info("%d unconstrained paths spotted!" % len(trace_group.stashes['unconstrained']))
+        branches = t.next_branch()
+        while len(branches.active) > 0:
 
             # check here to see if a crash has been found
             if self.redis and self.redis.sismember(self.identifier + "-finished", True):
                 return
 
-            # move the transition which the dynamic trace didn't encounter to the 'missed' stash
-            trace_group.stash_not_addr(next_move, to_stash='missed')
-
-            # make sure we actually have one active path at this point
-            # in the case which we have no paths but a next_move, that's trouble
-            if next_move is not None and len(trace_group.active) < 1:
-                l.error("[%s] taking the branch at %#x is unsatisfiable to angr", self.identifier, next_move)
-                l.error("[%s] input was %r", self.identifier, self.input)
-                raise DrillerMisfollowError
-
             # mimic AFL's indexing scheme
-            if len(trace_group.stashes['missed']) > 0:
-                prev_loc = bb_trace[bb_cnt-1]
+            if len(branches.missed) > 0:
+                prev_loc = t.trace[t.bb_cnt-1] # a bit ugly
                 prev_loc = (prev_loc >> 4) ^ (prev_loc << 8)
                 prev_loc &= self.fuzz_bitmap_size - 1
                 prev_loc = prev_loc >> 1
-                for path in trace_group.stashes['missed']:
+                for path in branches.missed:
                     cur_loc = path.addr
                     cur_loc = (cur_loc >> 4) ^ (cur_loc << 8)
                     cur_loc &= self.fuzz_bitmap_size - 1
 
                     hit = bool(ord(self.fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
 
-                    transition = (bb_trace[bb_cnt-1], path.addr)
+                    transition = (t.trace[t.bb_cnt-1], path.addr)
 
                     l.debug("found %x -> %x transition" % transition)
 
                     if not hit and not self._has_encountered(transition):
-                        self._remove_preconstraints(path)
+                        t.remove_preconstraints(path)
                         if path.state.satisfiable():
                             # we writeout the new input as soon as possible to allow other AFL slaves
                             # to work with it
                             l.debug("found new cool thing!")
-                            self._writeout(bb_trace[bb_cnt-1], path)
+                            self._writeout(t.trace[t.bb_cnt-1], path)
                         else:
                             l.debug("couldn't dump input for %x -> %x" % transition)
 
-            trace_group.drop(stash='missed')
+            branches = t.next_branch()
             
-    def _windup_to_branch(self, path_group, bb_trace, bb_idx):
-        '''
-        step through a path_group until multiple branches can be taken, we return the our new position 
-        in the basic block trace and the branch which the dynamic trace took.
-
-        :param path_group: a mutable angr path_group 
-        :param bb_trace: a list of basic block address taken by the dynamic trace
-        :param bb_idx: the current index into bb_trace
-        :return: a tuple of the new basic block index and the next move taken by the dynamic trace
-        '''
-
-        while len(path_group.active) == 1:
-            current = path_group.active[0]
-
-            if len(bb_trace[bb_idx:]) == 0:
-                return (bb_idx, None)
-            elif current.addr == bb_trace[bb_idx]:
-                bb_idx += 1  # expected behaviour, the trace matches the angr basic block
-            elif current.addr == previous:
-                pass # angr steps through the same basic block trace when a syscall occurs
-            else:
-                l.error("The qemu trace and the angr trace differ, this most likely suggests a bug")
-                l.error("[%s] qemu [0x%x], angr [0x%x]", self.identifier, bb_trace[bb_idx], current.addr)
-                l.error("input was %r", self.input)
-                l.error("path_group was %r", path_group)
-                raise DrillerMisfollowError
-
-            # we don't need these, free them to save memory
-            current.trim_history()
-            current.state.downsize()
-
-            previous = current.addr
-            path_group.step()
-            path_group.stash(from_stash='unsat', to_stash='active')
-
-        # this occurs when a path deadends, no need to keep tracing it
-        if len(path_group.active) == 0 and len(path_group.deadended) > 0:
-            return (0, None)
-
-        return (bb_idx, bb_trace[bb_idx])
-
 ### UTILS
-
-    def _load_backed(self):
-        '''
-        load an angr project with initial state seeded by QEMU
-
-        :param binary: the binary to load
-        :return: angr project
-        '''
-
-        # get the backings, call out to qemu
-
-        bfd, backing = tempfile.mkstemp(prefix="driller-backing-", dir="/dev/shm/")
-        os.close(bfd)
-
-        args = [os.path.join(self.qemu_dir, "driller-qemu-cgc"), "-predump", backing, self.binary]
-        with open("/dev/null", "wb") as devnull:
-            p = subprocess.Popen(args, stdout=devnull)
-            p.wait()
-
-        # parse out the predump file
-        memory = {}
-        regs = {}
-        with open(backing, "rb") as f:
-            while len(regs) == 0:
-                tag = f.read(4)
-                if tag != "REGS":
-                    start = struct.unpack("<I", tag)[0]
-                    end = struct.unpack("<I", f.read(4))[0]
-                    length = struct.unpack("<I", f.read(4))[0]
-                    content = f.read(length)
-                    memory[start] = content
-                else:
-                    # general purpose regs
-                    regs['eax'] = struct.unpack("<I", f.read(4))[0]
-                    regs['ebx'] = struct.unpack("<I", f.read(4))[0]
-                    regs['ecx'] = struct.unpack("<I", f.read(4))[0]
-                    regs['edx'] = struct.unpack("<I", f.read(4))[0]
-                    regs['esi'] = struct.unpack("<I", f.read(4))[0]
-                    regs['edi'] = struct.unpack("<I", f.read(4))[0]
-                    regs['ebp'] = struct.unpack("<I", f.read(4))[0]
-                    regs['esp'] = struct.unpack("<I", f.read(4))[0]
-
-                    # d flag
-                    regs['d']   = struct.unpack("<I", f.read(4))[0]
-
-                    # eip
-                    # adjust eip
-                    regs['eip'] = struct.unpack("<I", f.read(4))[0] - 2
-
-                    # fp regs
-                    regs['st0'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st0'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st1'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st1'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st2'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st2'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st3'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st3'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st4'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st4'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st5'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st5'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st6'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st6'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st7'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st7'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    # fp tags
-                    regs['fpu_t0'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t1'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t2'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t3'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t4'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t5'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t6'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t7'] = struct.unpack("B", f.read(1))[0]
-
-                    # ftop
-                    regs['ftop'] = struct.unpack("<I", f.read(4))[0]
-
-                    # sseround
-                    regs['mxcsr'] = struct.unpack("<I", f.read(4))[0]
-
-                    regs['xmm0'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm0'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm1'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm1'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm2'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm2'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm3'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm3'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm4'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm4'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm5'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm5'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm6'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm6'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm7'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm7'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-        os.remove(backing)
-
-
-        ld = cle.Loader(self.binary, main_opts={'backend': cle.loader.BackedCGC, 'memory_backer': memory, 'register_backer': regs, 'writes_backer': []})
-        return regs['eip'], angr.Project(ld)
-
-    def _timed_out(self):
-        if config.DRILL_TIMEOUT is not None:
-            return (int(time.time()) - self.start_time) > config.DRILL_TIMEOUT
-        else: # if no timeout is specified we never time out
-            return False
-
-    def _set_simprocedures(self, project):
-        from simprocedures import cgc_simprocedures
-
-        # TODO: support more than CGC
-        simprocs = cgc_simprocedures
-        for symbol, procedure in simprocs:
-            simuvex.SimProcedures['cgc'][symbol] = procedure
 
     def _has_encountered(self, transition):
         return transition in self._encounters

@@ -1,6 +1,6 @@
 import logging
 
-l = logging.getLogger("driller.tracer")
+l = logging.getLogger("driller.Tracer")
 
 import cle
 import angr
@@ -26,16 +26,18 @@ class Tracer(object):
     Trace an angr path with a concrete input
     '''
 
-    def __init__(self, binary, input, preconstrain=True):
+    def __init__(self, binary, input, simprocedures={}, preconstrain=True):
         '''
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
         :param preconstrain: should the path be preconstrained to the provided input
+        :param simprocedures: dictionary of replacement simprocedures
         '''
 
-        self.binary       = binary
-        self.input        = input
-        self.preconstrain = preconstrain
+        self.binary        = binary
+        self.input         = input
+        self.preconstrain  = preconstrain
+        self.simprocedures = simprocedures
 
         self.base = os.path.join(os.path.dirname(__file__), "..")
 
@@ -114,7 +116,6 @@ class Tracer(object):
 
             self.path_group = self.path_group.drop(stash='unsat')
 
-        l.debug("addrs: %r", map(lambda x: hex(x.addr), self.path_group.active))
         l.debug("taking the branch %x", self.trace[self.bb_cnt])
         self.path_group = self.path_group.stash_not_addr(
                                        self.trace[self.bb_cnt], 
@@ -371,9 +372,14 @@ class Tracer(object):
 
         stdin.seek(0)
 
+    def _set_simprocedures(self):
+        for symbol in self.simprocedures:
+            simuvex.SimProcedures['cgc'][symbol] = self.simprocedures[symbol]
+
     def _prepare_paths(self):
 
         project = self._load_backed()
+        self._set_simprocedures()
 
         entry_state = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
 

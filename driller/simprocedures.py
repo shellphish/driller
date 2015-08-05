@@ -21,4 +21,4 @@ class random(simuvex.SimProcedure):
 
         return r
 
-cgc_simprocedures = [("random", random)]
+cgc_simprocedures = {"random": random}
