@@ -16,12 +16,11 @@ app.conf.CELERY_ROUTES = config.CELERY_ROUTES
 redis_pool = redis.ConnectionPool(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
 
 @app.task
-def drill(binary, input, fuzz_bitmap, exit_on_eof=False):
+def drill(binary, input, fuzz_bitmap):
     redis_inst = redis.Redis(connection_pool=redis_pool)
 
     binary_path = os.path.join(config.BINARY_DIR, binary)
-    driller = Driller(binary_path, input, fuzz_bitmap, config.QEMU_DIR, redis=redis_inst,
-                        exit_on_eof=exit_on_eof)
+    driller = Driller(binary_path, input, fuzz_bitmap, redis=redis_inst)
     try:
         return driller.drill()
     except Exception as e:
