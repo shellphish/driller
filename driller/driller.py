@@ -186,7 +186,11 @@ class Driller(object):
                     else:
                         l.debug("couldn't dump input for %x -> %x" % transition)
 
-            branches = t.next_branch()
+            try:
+                branches = t.next_branch()
+            except IndexError:
+                branches.active = [ ]
+
             
 ### UTILS
 
