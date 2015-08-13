@@ -176,15 +176,15 @@ class Driller(object):
 
                     l.debug("found %x -> %x transition" % transition)
 
-                    if not hit and not self._has_encountered(transition):
-                        t.remove_preconstraints(path)
-                        if path.state.satisfiable():
-                            # we writeout the new input as soon as possible to allow other AFL slaves
-                            # to work with it
-                            l.debug("found new cool thing!")
-                            self._writeout(t.trace[t.bb_cnt-1], path)
-                        else:
-                            l.debug("couldn't dump input for %x -> %x" % transition)
+                    #if not hit and not self._has_encountered(transition):
+                    t.remove_preconstraints(path)
+                    if path.state.satisfiable():
+                        # we writeout the new input as soon as possible to allow other AFL slaves
+                        # to work with it
+                        l.debug("found new cool thing!")
+                        self._writeout(t.trace[t.bb_cnt-1], path)
+                    else:
+                        l.debug("couldn't dump input for %x -> %x" % transition)
 
             branches = t.next_branch()
             
@@ -223,11 +223,11 @@ class Driller(object):
 
         # checks here to see if the generation is worth writing to disk
         # if we generate too many inputs which are not really different we'll seriously slow down AFL
-        if self._in_catalogue(*key):
-            return
-        else:
-            self._encounters.add((prev_addr, path.addr))
-            self._add_to_catalogue(*key)
+        #if self._in_catalogue(*key):
+        #    return
+        #else:
+        #    self._encounters.add((prev_addr, path.addr))
+        #    self._add_to_catalogue(*key)
 
         l.info("[%s] dumping input for %x -> %x", self.identifier, prev_addr, path.addr)
 
