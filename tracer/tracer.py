@@ -111,11 +111,14 @@ class Tracer(object):
 
             # if our input was preconstrained we have to keep on the lookout for unsat paths
             if self.preconstrain:
-              self.path_group = self.path_group.stash(from_stash='unsat',
+              self.path_group = self.path_group.stash(filter_func=lambda p: not any(map(p.state.se.is_false, p.state.se.constraints)), 
+                                                      from_stash='unsat',
                                                       to_stash='active')
+
 
             self.path_group = self.path_group.drop(stash='unsat')
 
+        l.debug("bb %d / %d", self.bb_cnt, len(self.trace))
         l.debug("taking the branch %x", self.trace[self.bb_cnt])
         self.path_group = self.path_group.stash_not_addr(
                                        self.trace[self.bb_cnt], 
@@ -389,6 +392,8 @@ class Tracer(object):
 
         if self.preconstrain:
             self._preconstrain_state(entry_state)
+
+        entry_state.cgc.input_size = len(self.input)
 
         pg = project.factory.path_group(entry_state, immutable=True, save_unsat=True)
         return pg.step()
