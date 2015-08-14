@@ -18,10 +18,10 @@ import driller
 import driller.tasks
 import driller.config as config
 
-import argparse
 import os
 import sys
-
+import time
+import argparse
 
 def main(argv):
     parser = argparse.ArgumentParser(description="Increase AFL's code coverage")
@@ -55,7 +55,10 @@ def main(argv):
     # use the basename, the worker will be on a different syste
     binary = os.path.basename(binary)
 
-    for input_file in (d for d in os.listdir(in_dir) if not d.startswith('.')):
+    inputs = d for d in os.listdir(in_dir) if not d.startswith('.')
+    l.info("Drilling job requested at %s with %d inputs sent", time.ctime(), len(inputs))
+
+    for input_file in inputs:
         input_data = open(os.path.join(in_dir, input_file), 'rb').read()
         driller.tasks.drill.delay(binary, input_data, open(fuzz_bitmap, 'rb').read())
 
