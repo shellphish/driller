@@ -190,7 +190,6 @@ class Driller(object):
                 branches = t.next_branch()
             except IndexError:
                 branches.active = [ ]
-
             
 ### UTILS
 
@@ -222,7 +221,8 @@ class Driller(object):
         # no redis = no catalogue
 
     def _writeout(self, prev_addr, path):
-        generated = path.state.posix.dumps(0)
+        generated = path.state.posix.read(0, path.state.posix.files[0].pos, pos=0)
+        generated = path.state.se.any_str(generated)
         key = (len(generated), prev_addr, path.addr)
 
         # checks here to see if the generation is worth writing to disk
@@ -242,3 +242,5 @@ class Driller(object):
             channel = self.identifier + '-generated'
 
             self.redis.publish(channel, pickle.dumps({'meta': key, 'data': generated}))
+        else:
+            l.info("generated: %s", generated.encode('hex'))
