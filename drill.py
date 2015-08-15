@@ -56,7 +56,7 @@ def main(argv):
     binary = os.path.basename(binary)
 
     inputs = filter(lambda d: not d.startswith('.'), os.listdir(in_dir))
-    l.info("Drilling job requested at %s with %d inputs sent", time.ctime(), len(inputs))
+    l.info("[%s] Drilling job requested at %s with %d inputs sent", binary, time.ctime(), len(inputs))
 
     for input_file in inputs:
         input_data = open(os.path.join(in_dir, input_file), 'rb').read()
