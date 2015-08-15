@@ -55,7 +55,7 @@ def main(argv):
     # use the basename, the worker will be on a different syste
     binary = os.path.basename(binary)
 
-    inputs = d for d in os.listdir(in_dir) if not d.startswith('.')
+    inputs = filter(lambda d: not d.startswith('.'), os.listdir(in_dir))
     l.info("Drilling job requested at %s with %d inputs sent", time.ctime(), len(inputs))
 
     for input_file in inputs:
