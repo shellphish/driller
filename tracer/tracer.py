@@ -116,7 +116,13 @@ class Tracer(object):
                         raise TraceMisfollowError
 
             self.previous = current.addr
-            self.path_group = self.path_group.step() 
+
+            # Basic block's max size in angr is greater than the one in Qemu
+            # We follow the one in Qemu
+            bbl_max_bytes = self.trace[self.bb_cnt] - self.trace[self.bb_cnt - 1]
+            if bbl_max_bytes <= 0:
+                bbl_max_bytes = 800
+            self.path_group = self.path_group.step(max_size=bbl_max_bytes) 
 
             # if our input was preconstrained we have to keep on the lookout for unsat paths
             if self.preconstrain:
@@ -277,6 +283,7 @@ class Tracer(object):
             # should never block, predump should exit at the first call which would block
             p = subprocess.Popen(args, stdout=devnull) 
             p.wait()
+
 
         # parse out the predump file
         memory = {}
