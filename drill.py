@@ -23,6 +23,16 @@ import sys
 import time
 import argparse
 
+def get_fuzzer_id(input_data_path):
+    # get the fuzzer id
+    abs_path = os.path.abspath(input_data_path)
+    if "sync/" not in abs_path or "id:" not in abs_path:
+        l.warning("path %s, cant find fuzzer id", abs_path)
+        return "None"
+    fuzzer_name = abs_path.split("sync/")[-1].split("/")[0]
+    input_id = abs_path.split("id:")[-1].split(",")[0]
+    return fuzzer_name + ",src:" + input_id
+
 def main(argv):
     parser = argparse.ArgumentParser(description="Increase AFL's code coverage")
     
@@ -52,15 +62,18 @@ def main(argv):
     in_dir      = args.in_dir
     fuzz_bitmap = args.fuzz_bitmap
 
-    # use the basename, the worker will be on a different syste
+    # use the basename, the worker will be on a different system
     binary = os.path.basename(binary)
 
     inputs = filter(lambda d: not d.startswith('.'), os.listdir(in_dir))
     l.info("[%s] Drilling job requested at %s with %d inputs sent", binary, time.ctime(), len(inputs))
 
     for input_file in inputs:
-        input_data = open(os.path.join(in_dir, input_file), 'rb').read()
-        driller.tasks.drill.delay(binary, input_data, open(fuzz_bitmap, 'rb').read())
+        input_data_path = os.path.join(in_dir, input_file)
+        input_data = open(input_data_path, 'rb').read()
+        tag = get_fuzzer_id(input_data_path)
+
+        driller.tasks.drill.delay(binary, input_data, open(fuzz_bitmap, 'rb').read(), tag)
 
     return 0
 

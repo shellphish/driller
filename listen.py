@@ -38,6 +38,7 @@ for msg in p.listen():
     if msg['type'] == 'message':
         real_msg = pickle.loads(msg['data'])
         out_filename = "driller-%d-%x-%x" % real_msg['meta']
+        out_filename += "_%s" % real_msg['tag']
         l.debug("dumping new input to %s" % out_filename)
         afl_name = "id:%06d,src:%s" % (input_cnt, out_filename)
         out_file = os.path.join(queue_dir, afl_name)
