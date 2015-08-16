@@ -189,6 +189,7 @@ class Tracer(object):
 
         path.state.se.constraints[:] = new_constraints
         path.state.downsize()
+        path.state.se._solver.result = None
 
 ### SETUP
 
