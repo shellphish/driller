@@ -404,7 +404,7 @@ class Tracer(object):
         project = self._load_backed()
         self._set_simprocedures()
 
-        entry_state = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+        entry_state = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, simuvex.s_options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH})
 
         # windup the basic block trace to the point where we'll begin symbolic trace
         while self.trace[self.bb_cnt] != project.entry + 2:
