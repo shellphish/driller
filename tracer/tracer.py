@@ -415,6 +415,6 @@ class Tracer(object):
 
         entry_state.cgc.input_size = len(self.input)
 
-        pg = project.factory.path_group(entry_state, immutable=True, save_unsat=True)
+        pg = project.factory.path_group(entry_state, immutable=True, save_unsat=True, hierarchy=False)
         return pg.step()
 

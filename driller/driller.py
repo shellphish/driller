@@ -204,19 +204,19 @@ class Driller(object):
         accumulated = 1
 
         p = angr.Project(self.binary)
-        pg = p.factory.path_group(path, immutable=False)
+        pg = p.factory.path_group(path, immutable=False, hierarchy=False)
 
         while len(pg.active) and accumulated < 1024:
             pg.step()
             steps += 1
 
             # dump all inputs
-            for active in pg.active:
-                l.debug("dumping path group %s", pg)
-                self._writeout(active.addr_backtrace[-1], active)
 
             accumulated = steps * len(pg.active)
 
+        pg.stash(from_stash='deadended', to_stash='active')
+        for dumpable in pg.active:
+            self._writeout(dumpable.addr_backtrace[-2], dumpable)
 
 ### UTILS
 
