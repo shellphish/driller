@@ -182,6 +182,7 @@ class Driller(object):
                         # a number of deeper inputs
                         if not hit and not self._has_encountered(transition):
                             l.debug("found a completely new transition, exploring to some extent")
+                            self._writeout(path.addr_backtrace[-2], path)
                             self._symbolic_explorer_stub(path)
 
                         # just a single state transition, write it out
@@ -216,7 +217,11 @@ class Driller(object):
 
         pg.stash(from_stash='deadended', to_stash='active')
         for dumpable in pg.active:
-            self._writeout(dumpable.addr_backtrace[-2], dumpable)
+            try:
+                self._writeout(dumpable.addr_backtrace[-2], dumpable)
+            except IndexError: # if the path we're trying to dump wasn't actually satisfiable
+                pass
+
 
 ### UTILS
 
