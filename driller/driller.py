@@ -121,7 +121,7 @@ class Driller(object):
 
         if self.redis and self.redis.sismember(self.identifier + '-traced', self.input):
             # don't re-trace the same input
-            return 0
+            return -1
 
         # update traced
         if self.redis:
@@ -178,6 +178,7 @@ class Driller(object):
                     l.debug("found %x -> %x transition" % transition)
 
                     t.remove_preconstraints(path)
+
                     if path.state.satisfiable():
                         # a completely new state transitions, let's try to accelerate AFL by finding
                         # a number of deeper inputs
@@ -214,7 +215,7 @@ class Driller(object):
 
             # dump all inputs
 
-            accumulated = steps * len(pg.active)
+            accumulated = steps * (len(pg.active) + len(pg.deadended))
 
         pg.stash(from_stash='deadended', to_stash='active')
         for dumpable in pg.active:
