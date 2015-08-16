@@ -140,7 +140,7 @@ class Tracer(object):
         # make sure we only have one or zero active paths at this point
         assert(len(self.path_group.active) < 2)
 
-        l.debug("taking the branch at %x" self.path_group.active[0].addr)
+        l.debug("taking the branch at %x", self.path_group.active[0].addr)
 
         rpg = self.path_group
 
@@ -189,6 +189,7 @@ class Tracer(object):
 
         path.state.se.constraints[:] = new_constraints
         path.state.downsize()
+        path.state.se._solver.result = None
 
 ### SETUP
 
