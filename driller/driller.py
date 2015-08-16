@@ -162,7 +162,8 @@ class Driller(object):
 
             # mimic AFL's indexing scheme
             if len(branches.missed) > 0:
-                prev_loc = t.trace[t.bb_cnt-1] # a bit ugly
+                prev_addr = branches.missed[0].addr_backtrace[-1] # a bit ugly
+                prev_loc = prev_addr
                 prev_loc = (prev_loc >> 4) ^ (prev_loc << 8)
                 prev_loc &= self.fuzz_bitmap_size - 1
                 prev_loc = prev_loc >> 1
@@ -173,24 +174,20 @@ class Driller(object):
 
                     hit = bool(ord(self.fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
 
-                    transition = (t.trace[t.bb_cnt-1], path.addr)
+                    transition = (prev_addr, path.addr)
 
                     l.debug("found %x -> %x transition" % transition)
 
-                    t.remove_preconstraints(path)
+                    if not hit and not self._has_encountered(transition):
+                        t.remove_preconstraints(path)
 
-                    if path.state.satisfiable():
-                        # a completely new state transitions, let's try to accelerate AFL by finding
-                        # a number of deeper inputs
-                        if not hit and not self._has_encountered(transition):
-                            l.debug("found a completely new transition, exploring to some extent")
-                            self._writeout(path.addr_backtrace[-2], path)
+                        if path.state.satisfiable():
+                            # a completely new state transitions, let's try to accelerate AFL 
+                            # by finding  a number of deeper inputs
+                            l.info("found a completely new transition, exploring to some extent")
+                            self._writeout(prev_addr, path)
                             self._symbolic_explorer_stub(path)
 
-                        # just a single state transition, write it out
-                        else:
-                            l.debug("found new single transition!")
-                            self._writeout(t.trace[t.bb_cnt-1], path)
                     else:
                         l.debug("couldn't dump input for %x -> %x" % transition)
 
@@ -209,6 +206,8 @@ class Driller(object):
         p = angr.Project(self.binary)
         pg = p.factory.path_group(path, immutable=False, hierarchy=False)
 
+        l.info("[%s] started symbolic exploration at %s", self.identifier, time.ctime())
+
         while len(pg.active) and accumulated < 1024:
             pg.step()
             steps += 1
@@ -217,10 +216,12 @@ class Driller(object):
 
             accumulated = steps * (len(pg.active) + len(pg.deadended))
 
+        l.info("[%s] symbolic exploration stopped at %s", self.identifier, time.ctime())
+
         pg.stash(from_stash='deadended', to_stash='active')
         for dumpable in pg.active:
             try:
-                self._writeout(dumpable.addr_backtrace[-2], dumpable)
+                self._writeout(dumpable.addr_backtrace[-1], dumpable)
             except IndexError: # if the path we're trying to dump wasn't actually satisfiable
                 pass
 
