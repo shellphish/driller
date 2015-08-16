@@ -176,13 +176,18 @@ class Driller(object):
 
                     l.debug("found %x -> %x transition" % transition)
 
-                    #if not hit and not self._has_encountered(transition):
                     t.remove_preconstraints(path)
                     if path.state.satisfiable():
-                        # we writeout the new input as soon as possible to allow other AFL slaves
-                        # to work with it
-                        l.debug("found new cool thing!")
-                        self._writeout(t.trace[t.bb_cnt-1], path)
+                        # a completely new state transitions, let's try to accelerate AFL by finding
+                        # a number of deeper inputs
+                        if not hit and not self._has_encountered(transition):
+                            l.debug("found a completely new transition, exploring to some extent")
+                            self._symbolic_explorer_stub(path)
+
+                        # just a single state transition, write it out
+                        else:
+                            l.debug("found new single transition!")
+                            self._writeout(t.trace[t.bb_cnt-1], path)
                     else:
                         l.debug("couldn't dump input for %x -> %x" % transition)
 
@@ -191,6 +196,28 @@ class Driller(object):
             except IndexError:
                 branches.active = [ ]
             
+### EXPLORER
+    def _symbolic_explorer_stub(self, path):
+        # create a new path group and step it forward up to 1024 accumulated active paths or steps
+
+        steps = 0
+        accumulated = 1
+
+        p = angr.Project(self.binary)
+        pg = p.factory.path_group(path, immutable=False)
+
+        while len(pg.active) and accumulated < 1024:
+            pg.step()
+            steps += 1
+
+            # dump all inputs
+            for active in pg.active:
+                l.debug("dumping path group %s", pg)
+                self._writeout(active.addr_backtrace[-1], active)
+
+            accumulated = steps * len(pg.active)
+
+
 ### UTILS
 
     def _has_encountered(self, transition):
@@ -232,6 +259,8 @@ class Driller(object):
         #else:
         #    self._encounters.add((prev_addr, path.addr))
         #    self._add_to_catalogue(*key)
+
+        self._encounters.add((prev_addr, path.addr))
 
         l.info("[%s] dumping input for %x -> %x", self.identifier, prev_addr, path.addr)
 
