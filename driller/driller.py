@@ -36,7 +36,7 @@ class Driller(object):
     Driller object, symbolically follows an input looking for new state transitions
     '''
 
-    def __init__(self, binary, input, fuzz_bitmap, redis=None):
+    def __init__(self, binary, input, fuzz_bitmap, tag, redis=None):
         '''
         :param binary: the binary to be traced
         :param input: input string to feed to the binary
@@ -49,6 +49,7 @@ class Driller(object):
         self.identifier  = os.path.basename(binary)
         self.input       = input
         self.fuzz_bitmap = fuzz_bitmap
+        self.tag         = tag
         self.redis       = redis
 
         self.base = os.path.join(os.path.dirname(__file__), "..")
@@ -275,6 +276,6 @@ class Driller(object):
             # publish it out in real-time so that inputs get there immediately
             channel = self.identifier + '-generated'
 
-            self.redis.publish(channel, pickle.dumps({'meta': key, 'data': generated}))
+            self.redis.publish(channel, pickle.dumps({'meta': key, 'data': generated, "tag": self.tag}))
         else:
             l.info("generated: %s", generated.encode('hex'))
