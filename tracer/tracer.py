@@ -26,18 +26,20 @@ class Tracer(object):
     Trace an angr path with a concrete input
     '''
 
-    def __init__(self, binary, input, simprocedures={}, preconstrain=True):
+    def __init__(self, binary, input, simprocedures={}, preconstrain=True, resiliency=True):
         '''
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
-        :param preconstrain: should the path be preconstrained to the provided input
         :param simprocedures: dictionary of replacement simprocedures
+        :param preconstrain: should the path be preconstrained to the provided input
+        :param resiliency: should we continue to step forward even if qemu and angr disagree?
         '''
 
         self.binary        = binary
         self.input         = input
         self.preconstrain  = preconstrain
         self.simprocedures = simprocedures
+        self.resiliency    = resiliency
 
         self.base = os.path.join(os.path.dirname(__file__), "..")
 
@@ -67,6 +69,9 @@ class Tracer(object):
         # keep track of the last basic block we hit
         self.previous = None
 
+        # whether we should follow the qemu trace
+        self.no_follow = False
+
         self.path_group = self._prepare_paths()
 
 ### EXPOSED
@@ -84,27 +89,31 @@ class Tracer(object):
         while len(self.path_group.active) == 1:
             current = self.path_group.active[0]
 
-            #bb = self._current_bb()
-
             # if the dynamic trace stopped and we're in crash mode, we'll
             # return the current path
 
-            # expected behavor, the dynamic trace and symbolic trace hit the 
-            # same basic block
-            if current.addr == self.trace[self.bb_cnt]:
-                self.bb_cnt += 1 
+            if not self.no_follow:
+                # expected behavor, the dynamic trace and symbolic trace hit the
+                # same basic block
+                if current.addr == self.trace[self.bb_cnt]:
+                    self.bb_cnt += 1
 
-            # angr steps through the same basic block twice when a syscall 
-            # occurs
-            elif current.addr == self.previous:
-                pass 
+                # angr steps through the same basic block twice when a syscall
+                # occurs
+                elif current.addr == self.previous:
+                    pass
 
-            else:
-                l.error("the dynamic trace and the symbolic trace disagreed")
-                l.error("[%s] dynamic [0x%x], symbolic [0x%x]", self.binary,
-                        self.trace[self.bb_cnt], current.addr)
-                l.error("inputs was %r", self.input)
-                raise TracerMisfollowError
+                else:
+                    l.error("the dynamic trace and the symbolic trace disagreed")
+                    l.error("[%s] dynamic [0x%x], symbolic [0x%x]", self.binary,
+                            self.trace[self.bb_cnt], current.addr)
+                    l.error("inputs was %r", self.input)
+                    if self.resiliency:
+                        l.error("TracerMisfollowError encountered")
+                        l.warning("entering no follow mode")
+                        self.no_follow = True
+                    else:
+                        raise TraceMisfollowError
 
             self.previous = current.addr
             self.path_group = self.path_group.step() 
@@ -118,11 +127,21 @@ class Tracer(object):
 
             self.path_group = self.path_group.drop(stash='unsat')
 
-        l.debug("bb %d / %d", self.bb_cnt, len(self.trace))
-        l.debug("taking the branch %x", self.trace[self.bb_cnt])
-        self.path_group = self.path_group.stash_not_addr(
-                                       self.trace[self.bb_cnt], 
-                                       to_stash='missed')
+        # if we have to ditch the trace we use satisfiability
+        if self.no_follow:
+            l.debug(self.path_group)
+            self.path_group = self.path_group.prune(to_stash='missed')
+        else:
+            l.debug("bb %d / %d", self.bb_cnt, len(self.trace))
+            self.path_group = self.path_group.stash_not_addr(
+                                           self.trace[self.bb_cnt],
+                                           to_stash='missed')
+
+        # make sure we only have one or zero active paths at this point
+        assert(len(self.path_group.active) < 2)
+
+        l.debug("taking the branch at %x" self.path_group.active[0].addr)
+
         rpg = self.path_group
 
         self.path_group = self.path_group.drop(stash='missed')
