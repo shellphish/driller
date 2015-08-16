@@ -13,10 +13,8 @@ logging.getLogger().setLevel("CRITICAL")
 l = logging.getLogger("driller.drill")
 l.setLevel("INFO")
 
-import angr
 import driller
 import driller.tasks
-import driller.config as config
 
 import os
 import sys
@@ -32,6 +30,26 @@ def get_fuzzer_id(input_data_path):
     fuzzer_name = abs_path.split("sync/")[-1].split("/")[0]
     input_id = abs_path.split("id:")[-1].split(",")[0]
     return fuzzer_name + ",src:" + input_id
+
+def input_filter(input_dir, inputs):
+
+    # dumb hack to the fuzzer's directory
+    fuzzer_dir = os.path.dirname(input_dir[:-1])
+
+    traced_cache = os.path.join(fuzzer_dir, "traced")
+
+    traced_inputs = set()
+    if os.path.isfile(traced_cache):
+        with open(traced_cache, 'rb') as f:
+            traced_inputs = set(f.read().split('\n'))
+
+    new_inputs = filter(lambda i: i not in traced_inputs, inputs)
+
+    with open(traced_cache, 'ab') as f:
+        for new_input in new_inputs:
+            f.write("%s\n" % new_input)
+
+    return new_inputs
 
 def main(argv):
     parser = argparse.ArgumentParser(description="Increase AFL's code coverage")
@@ -65,7 +83,11 @@ def main(argv):
     # use the basename, the worker will be on a different system
     binary = os.path.basename(binary)
 
+    # anything in AFL's input directory which starts with a '.' is book keeping
     inputs = filter(lambda d: not d.startswith('.'), os.listdir(in_dir))
+
+    # let's filter out input which we've already sent
+    inputs = input_filter(in_dir, inputs)
     l.info("[%s] Drilling job requested at %s with %d inputs sent", binary, time.ctime(), len(inputs))
 
     for input_file in inputs:
