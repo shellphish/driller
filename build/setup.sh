@@ -4,7 +4,7 @@ pushd $(dirname "$0") >/dev/null
 DRILLER_DIR="`pwd`/.."
 popd >/dev/null
 
-sudo apt-get install libpixman-1-dev libglib2.0-dev make automake bison
+sudo apt-get install -y libpixman-1-dev libglib2.0-dev make automake bison
 
 cd $DRILLER_DIR
 ./build/build_qemu.sh
