@@ -7,6 +7,9 @@ popd >/dev/null
 
 cd $BUILD_DIR
 
+# remove the freaking directory first
+rm -rf driller-afl
+
 git clone git@git.seclab.cs.ucsb.edu:mpizza/driller-afl.git
 
 cd driller-afl
