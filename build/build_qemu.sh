@@ -8,11 +8,17 @@ DRILLER_QEMU="driller-qemu/"
 
 cd $BUILD_DIR
 
+# remove qemu directory
+rm -rf ../$DRILLER_QEMU
+
 # make a directory for our modified qemu
 mkdir ../$DRILLER_QEMU
 
 # require qemu 2.3.0
 QEMU_GIT="git://git.qemu.org/qemu.git"
+
+# remove qemu git directory
+rm -rf qemu
 
 git clone $QEMU_GIT
 cd qemu
@@ -34,6 +40,9 @@ echo "Done with ELF qemu!"
 cd ..
 
 CGC_QEMU_GIT="git@git.seclab.cs.ucsb.edu:cgc/qemu.git"
+
+# remove cgc_qemu
+rm -rf cgc_qemu
 
 git clone $CGC_QEMU_GIT "cgc_qemu"
 cd cgc_qemu
