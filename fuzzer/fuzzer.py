@@ -340,3 +340,6 @@ class Fuzzer(object):
 
         # delete the finished entry
         redis_inst.delete("%s-finished" % self.binary_id)
+
+        # delete the fuzz bitmaps
+        redis_inst.delete("%s-bitmaps" % self.binary_id)
