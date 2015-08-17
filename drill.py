@@ -15,11 +15,15 @@ l.setLevel("INFO")
 
 import driller
 import driller.tasks
+import driller.config
 
 import os
 import sys
 import time
+import hashlib
 import argparse
+
+import redis
 
 def get_fuzzer_id(input_data_path):
     # get the fuzzer id
@@ -68,9 +72,9 @@ def main(argv):
                         required=True)
 
     parser.add_argument("-f", 
-                        dest="fuzz_bitmap", 
+                        dest="bitmap_file",
                         type=str, 
-                        metavar="<fuzz_bitmap>", 
+                        metavar="<bitmap_file>",
                         help="AFL's fuzz bitmap file",
                         required=True)
 
@@ -78,7 +82,7 @@ def main(argv):
     
     binary      = args.binary
     in_dir      = args.in_dir
-    fuzz_bitmap = args.fuzz_bitmap
+    bitmap_file = args.bitmap_file
 
     # use the basename, the worker will be on a different system
     binary = os.path.basename(binary)
@@ -90,12 +94,20 @@ def main(argv):
     inputs = input_filter(in_dir, inputs)
     l.info("[%s] Drilling job requested at %s with %d inputs sent", binary, time.ctime(), len(inputs))
 
+    # put the bitmap into redis
+    fuzz_bitmap = open(bitmap_file, 'rb').read()
+    bitmap_hash = hashlib.sha256(fuzz_bitmap).hexdigest()
+    redis_inst = redis.Redis(host=driller.config.REDIS_HOST,
+                             port=driller.config.REDIS_PORT,
+                             db=driller.config.REDIS_DB)
+    redis_inst.hset(binary + '-bitmaps', bitmap_hash, fuzz_bitmap)
+
     for input_file in inputs:
         input_data_path = os.path.join(in_dir, input_file)
         input_data = open(input_data_path, 'rb').read()
         tag = get_fuzzer_id(input_data_path)
 
-        driller.tasks.drill.delay(binary, input_data, open(fuzz_bitmap, 'rb').read(), tag)
+        driller.tasks.drill.delay(binary, input_data, bitmap_hash, tag)
 
     return 0
 

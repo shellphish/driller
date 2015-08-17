@@ -16,8 +16,9 @@ app.conf.CELERY_ROUTES = config.CELERY_ROUTES
 redis_pool = redis.ConnectionPool(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
 
 @app.task
-def drill(binary, input, fuzz_bitmap, tag):
+def drill(binary, input, bitmap_hash, tag):
     redis_inst = redis.Redis(connection_pool=redis_pool)
+    fuzz_bitmap = redis_inst.hget(binary + '-bitmaps', bitmap_hash)
 
     binary_path = os.path.join(config.BINARY_DIR, binary)
     driller = Driller(binary_path, input, fuzz_bitmap, tag, redis=redis_inst)
