@@ -22,6 +22,7 @@ cd ..
 cp afl-fuzz ../../driller-afl-fuzz
 
 cd ..
+rm -f afl
 ln -s driller-afl afl
 
 echo "All done!"
