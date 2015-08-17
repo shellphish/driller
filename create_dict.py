@@ -41,9 +41,10 @@ def create(binary, outfile):
 
         strings = [] if len(string_references) == 0 else zip(*string_references)[1]
 
-        if len(strings) > 0:
+        valid_strings = filter(lambda s: len(s) <= 128 and len(s) > 0, strings)
+        if len(valid_strings) > 0:
             with open(outfile, 'wb') as f:
-                for i, string in enumerate(strings):
+                for i, string in enumerate(valid_strings):
                     # AFL has a limit of 128 bytes per dictionary entries
                     if len(string) <= 128:
                         s = hexescape(string)
