@@ -43,6 +43,21 @@ def start(binary_dir):
     l.debug("binaries: %r", jobs)
 
     # send all the binaries to the celery queue
+    l.info("%d binaries found", len(jobs))
+
+    filter_t = set()
+    try:
+        pwned = open("pwned").read()
+        for pwn in pwned.split("\n")[:-1]:
+            filter_t.add(pwn)
+        l.info("already pwned %d", len(filter_t))
+    except IOError:
+        pass
+
+    jobs = filter(lambda j: j not in pwned, jobs)
+
+    l.info("going to work on %d", len(jobs))
+
     for binary in jobs:
         fuzzer.tasks.fuzz.delay(binary)
 
