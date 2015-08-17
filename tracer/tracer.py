@@ -243,15 +243,12 @@ class Tracer(object):
         accumulate a basic block trace using qemu
         '''
 
-        logfd, logfile = tempfile.mkstemp(prefix="driller-trace-", dir="/dev/shm")
-        os.close(logfd)
-
-        args = [self.driller_qemu, "-d", "exec", "-D", logfile, self.binary]
+        args = [self.driller_qemu, "-d", "exec", "-D", "/proc/self/fd/2", self.binary]
 
         with open('/dev/null', 'wb') as devnull:
             # we assume qemu with always exit and won't block
-            p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=devnull, stderr=devnull)
-            p.communicate(self.input)
+            p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=devnull, stderr=subprocess.PIPE)
+            _, trace = p.communicate(self.input)
             ret = p.wait()
             # did a crash occur?
             if ret < 0:
@@ -259,12 +256,6 @@ class Tracer(object):
                     l.info("input caused a crash (signal %d) during dynamic tracing", abs(ret))
                     l.info("entering crash mode")
                     self.crash_mode = True
-            
-
-        tfp = open(logfile, 'rb')
-        trace = tfp.read()
-        tfp.close()
-        os.remove(logfile)
 
         addrs = [int(v.split('[')[1].split(']')[0], 16)
                  for v in trace.split('\n')
@@ -284,7 +275,7 @@ class Tracer(object):
 
         with open('/dev/null', 'wb') as devnull:
             # should never block, predump should exit at the first call which would block
-            p = subprocess.Popen(args, stdout=devnull) 
+            p = subprocess.Popen(args, stdout=devnull)
             p.wait()
 
 
