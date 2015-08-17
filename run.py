@@ -54,7 +54,7 @@ def start(binary_dir):
     except IOError:
         pass
 
-    jobs = filter(lambda j: j not in pwned, jobs)
+    jobs = filter(lambda j: j not in filter_t, jobs)
 
     l.info("going to work on %d", len(jobs))
 
