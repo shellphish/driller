@@ -262,13 +262,11 @@ class Driller(object):
 
         # checks here to see if the generation is worth writing to disk
         # if we generate too many inputs which are not really different we'll seriously slow down AFL
-        #if self._in_catalogue(*key):
-        #    return
-        #else:
-        #    self._encounters.add((prev_addr, path.addr))
-        #    self._add_to_catalogue(*key)
-
-        self._encounters.add((prev_addr, path.addr))
+        if self._in_catalogue(*key):
+            return
+        else:
+            self._encounters.add((prev_addr, path.addr))
+            self._add_to_catalogue(*key)
 
         l.info("[%s] dumping input for %x -> %x", self.identifier, prev_addr, path.addr)
 
