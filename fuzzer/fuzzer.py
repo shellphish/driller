@@ -82,6 +82,7 @@ class Fuzzer(object):
 
         # if we're resuming an old run set the input_directory to a '-'
         if self.resuming:
+            l.info("[%s] resuming old fuzzing run", self.binary_id)
             self.in_dir = "-"
 
         # create the work directory and input directory
