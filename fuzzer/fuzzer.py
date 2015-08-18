@@ -85,23 +85,24 @@ class Fuzzer(object):
             l.info("[%s] resuming old fuzzing run", self.binary_id)
             self.in_dir = "-"
 
-        # create the work directory and input directory
-        try:
-            os.makedirs(self.in_dir)
-        except OSError:
-            l.warning("unable to create in_dir \"%s\"", self.in_dir)
+        else:
+            # create the work directory and input directory
+            try:
+                os.makedirs(self.in_dir)
+            except OSError:
+                l.warning("unable to create in_dir \"%s\"", self.in_dir)
 
-        # populate the input directory
-        self._initialize_seeds()
+            # populate the input directory
+            self._initialize_seeds()
 
-        # look for a dictionary, if one doesn't exist create it with angr
-        if not os.path.isfile(self.dictionary):
-            # call out to another process to create the dictionary so we can
-            # limit it's memory
-            if not self._create_dict():
-                # no luck creating a dictionary
-                l.warning("[%s] unable to create dictionary", self.binary_id)
-                self.dictionary = None
+            # look for a dictionary, if one doesn't exist create it with angr
+            if not os.path.isfile(self.dictionary):
+                # call out to another process to create the dictionary so we can
+                # limit it's memory
+                if not self._create_dict():
+                    # no luck creating a dictionary
+                    l.warning("[%s] unable to create dictionary", self.binary_id)
+                    self.dictionary = None
 
         # set environment variable for the AFL_PATH
         os.environ['AFL_PATH'] = self.afl_path_var
