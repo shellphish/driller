@@ -65,7 +65,7 @@ class Fuzzer(object):
         # set when fuzzers are running
         self.alive            = False
         # test if we're resuming an old run
-        self.resuming         = bool(os.listdir(self.in_dir))
+        self.resuming         = bool(os.listdir(self.in_dir)) if os.path.isdir(self.in_dir) else False
 
         l.debug("self.start_time: %r" % self.start_time)
         l.debug("self.afl_path: %s" % self.afl_path)
