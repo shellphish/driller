@@ -103,7 +103,7 @@ class Fuzzer(object):
         elif not self.resuming:
             # call out to another process to create the dictionary so we can
             # limit it's memory
-            if self._create_dict():
+            if self._create_dict(dictionary_file):
                 self.dictionary = dictionary_file
             else:
                 # no luck creating a dictionary
@@ -239,12 +239,12 @@ class Fuzzer(object):
 
     ### DICTIONARY CREATION
 
-    def _create_dict(self):
+    def _create_dict(self, dict_file):
 
         l.debug("creating a dictionary of string references within binary \"%s\"",
                 self.binary_id)
 
-        args = [self.create_dict_path, self.binary_path, self.dictionary]
+        args = [self.create_dict_path, self.binary_path, dict_file]
 
         p = subprocess.Popen(args)
         retcode = p.wait()
