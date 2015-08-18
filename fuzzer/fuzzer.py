@@ -64,6 +64,8 @@ class Fuzzer(object):
         self.fuzz_id          = 0
         # set when fuzzers are running
         self.alive            = False
+        # test if we're resuming an old run
+        self.resuming         = bool(os.listdir(self.in_dir))
 
         l.debug("self.start_time: %r" % self.start_time)
         l.debug("self.afl_path: %s" % self.afl_path)
@@ -73,9 +75,14 @@ class Fuzzer(object):
         l.debug("self.binary_id: %s" % self.binary_id) 
         l.debug("self.work_dir: %s" % self.work_dir) 
         l.debug("self.dictionary: %s" % self.dictionary) 
+        l.debug("self.resuming: %s" % self.resuming)
 
         # clear redis database
         self._clear_redis()
+
+        # if we're resuming an old run set the input_directory to a '-'
+        if self.resuming:
+            self.in_dir = "-"
 
         # create the work directory and input directory
         try:
