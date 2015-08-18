@@ -278,13 +278,14 @@ class Fuzzer(object):
 
     ### AFL SPAWNERS
 
-    def _start_afl_instance(self, memory="8G", driller=None):
+    def _start_afl_instance(self, memory="8G", timeout="15+", driller=None):
 
         args = [self.afl_path]
 
         args += ["-i", self.in_dir]
         args += ["-o", self.out_dir]
         args += ["-m", memory]
+        args += ["-t", timeout]
         args += ["-Q"]
         if self.fuzz_id == 0:
             args += ["-M", "fuzzer-master"]
