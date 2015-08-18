@@ -57,7 +57,7 @@ class Fuzzer(object):
         # create_dict script
         self.create_dict_path = os.path.join(self.base, "create_dict.py")
         # afl dictionary
-        self.dictionary       = os.path.join(self.job_dir, "%s.dict" % self.binary_id)
+        self.dictionary       = None
         # processes spun up
         self.procs            = [ ]
         # start the fuzzer ids at 0
@@ -74,7 +74,6 @@ class Fuzzer(object):
         l.debug("self.qemu_dir: %s" % self.qemu_dir)
         l.debug("self.binary_id: %s" % self.binary_id) 
         l.debug("self.work_dir: %s" % self.work_dir) 
-        l.debug("self.dictionary: %s" % self.dictionary) 
         l.debug("self.resuming: %s" % self.resuming)
 
         # clear redis database
@@ -95,14 +94,20 @@ class Fuzzer(object):
             # populate the input directory
             self._initialize_seeds()
 
-            # look for a dictionary, if one doesn't exist create it with angr
-            if not os.path.isfile(self.dictionary):
-                # call out to another process to create the dictionary so we can
-                # limit it's memory
-                if not self._create_dict():
-                    # no luck creating a dictionary
-                    l.warning("[%s] unable to create dictionary", self.binary_id)
-                    self.dictionary = None
+        # look for a dictionary
+        dictionary_file = os.path.join(self.job_dir, "%s.dict" % self.binary_id)
+        if os.path.isfile(dictionary_file):
+            self.dictionary = dictionary_file
+
+        # if a dictionary doesn't exist and we aren't resuming a run, create a dict
+        elif not self.resuming:
+            # call out to another process to create the dictionary so we can
+            # limit it's memory
+            if self._create_dict():
+                self.dictionary = dictionary_file
+            else:
+                # no luck creating a dictionary
+                l.warning("[%s] unable to create dictionary", self.binary_id)
 
         # set environment variable for the AFL_PATH
         os.environ['AFL_PATH'] = self.afl_path_var
