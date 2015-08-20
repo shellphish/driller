@@ -125,6 +125,11 @@ class Tracer(object):
                 bbl_max_bytes = self.trace[self.bb_cnt] - self.trace[self.bb_cnt - 1]
                 if bbl_max_bytes <= 0:
                     bbl_max_bytes = 800
+
+            # if we're not in crash mode we don't care about the history
+            if not self.crash_mode:
+                current.trim_history()
+
             self.path_group = self.path_group.step(max_size=bbl_max_bytes) 
 
             # if our input was preconstrained we have to keep on the lookout for unsat paths
@@ -403,7 +408,10 @@ class Tracer(object):
     def _prepare_paths(self):
 
         project = self._load_backed()
-        self._set_simprocedures()
+
+        # if we're in crash mode we want the authentic system calls
+        if not self.crash_mode:
+            self._set_simprocedures()
 
         entry_state = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, simuvex.s_options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH})
 
