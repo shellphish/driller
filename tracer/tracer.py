@@ -175,15 +175,19 @@ class Tracer(object):
         while len(branches.active):
             try: 
                 branches = self.next_branch()
+                previous = branches.active[0]
             except IndexError:
                 if self.crash_mode:
                     l.info("crash occured in basic block %x", self.trace[self.bb_cnt - 1])
 
-                    # if a crash occured while trying to reach the next brach, we'll need to
-                    # work of of self.path_group which should be a path which actually encountered
-                    # the crashing basic block
-                    branches = self.path_group.stash(from_stash='active', to_stash='crashed')
-                    break
+                    # time to recover the crashing state
+
+                    # remove the preconstraints
+                    self.remove_preconstraints(previous)
+
+                    state = previous.next_run.successors[0]
+
+                    return (previous, state)
 
         # the caller is responsible for removing preconstraints
 
