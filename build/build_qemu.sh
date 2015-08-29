@@ -46,7 +46,7 @@ rm -rf cgc_qemu
 
 git clone $CGC_QEMU_GIT "cgc_qemu"
 cd cgc_qemu
-git checkout origin/base_driller
+git checkout base_tracer
 ./cgc_configure_opt
 make -j
 
