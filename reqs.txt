@@ -1,4 +1,5 @@
 termcolor
 redis
 celery
-dpkt
+dpkt-fix
+tracer

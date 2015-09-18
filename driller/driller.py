@@ -54,8 +54,6 @@ class Driller(object):
 
         self.base = os.path.join(os.path.dirname(__file__), "..")
 
-        self.qemu_dir = os.path.join(self.base, "driller-qemu")
-
         # set of encountered basic block transition
         self._encounters = set()
 
@@ -91,26 +89,7 @@ class Driller(object):
             l.error("passed binary file is not executable")
             ret = False
 
-        # check if the qemu dir is set up correctly
-        if not os.path.isdir(self.qemu_dir):
-            l.error("the QEMU directory \"%s\" either does not exist or is not a directory" % self.qemu_dir)
-            ret = False
-
         return ret
-
-    def _setup(self):
-        '''
-        prepare driller for running
-        '''
-
-        # save fuzz_bitmap's size
-        self.fuzz_bitmap_size = len(self.fuzz_bitmap)
-
-        l.debug("fuzz_bitmap of size %d bytes loaded" % self.fuzz_bitmap_size)
-
-        return True
-
-
 
 ### DRILLING
 
@@ -187,9 +166,11 @@ class Driller(object):
                             l.info("found a completely new transition, exploring to some extent")
                             self._writeout(prev_addr, path)
                             self._symbolic_explorer_stub(path)
+                        else:
+                            l.debug("path to %#x was not satisfiable", transition[1])
 
                     else:
-                        l.debug("couldn't dump input for %x -> %x" % transition)
+                        l.debug("%x -> %x has already been encountered" % transition)
 
             try:
                 branches = t.next_branch()
@@ -256,8 +237,13 @@ class Driller(object):
         # no redis = no catalogue
 
     def _writeout(self, prev_addr, path):
-        generated = path.state.posix.read(0, path.state.posix.files[0].pos, pos=0)
+        t_pos = path.state.posix.files[0].pos
+        path.state.posix.files[0].seek(0)
+        # read up to the length
+        generated = path.state.posix.read_from(0, t_pos)
         generated = path.state.se.any_str(generated)
+        path.state.posix.files[0].seek(t_pos)
+
         key = (len(generated), prev_addr, path.addr)
 
         # checks here to see if the generation is worth writing to disk
