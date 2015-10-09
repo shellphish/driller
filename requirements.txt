@@ -1,6 +1,10 @@
-termcolor
+cle
+angr
 redis
 celery
+simuvex
+archinfo
 dpkt-fix
+termcolor
 git+ssh://git@git.seclab.cs.ucsb.edu:cgc/tracer.git#egg=tracer
 git+ssh://git@git.seclab.cs.ucsb.edu:cgc/fuzzer.git#egg=fuzzer
