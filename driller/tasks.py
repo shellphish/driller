@@ -5,8 +5,8 @@ import redis
 import fuzzer
 import logging
 import hashlib
-import driller.config as config
 from celery import Celery
+import config
 from .driller import Driller
 
 l = logging.getLogger("driller.tasks")
@@ -63,6 +63,8 @@ def fuzz(binary):
     try:
         fzr.start()
 
+        # TODO start up a listener for driller results and add it to the procs list of the fuzzer
+
         # start the fuzzer and poll for a crash or timeout
         while not fzr.found_crash() and not fzr.timed_out():
             # check to see if driller should be invoked
@@ -92,7 +94,6 @@ def fuzz(binary):
     if fzr.timed_out():
         l.info("timed out while fuzzing \"%s\"", binary)
 
-    # stop any drilling taking place on the binary
-    fzr.end_drilling()
+    # TODO end drilling jobs working on the binary
 
     return fzr.found_crash() or early_crash
