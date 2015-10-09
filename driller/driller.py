@@ -12,12 +12,7 @@ import archinfo
 import os
 import time
 import signal
-import struct
 import resource
-import functools
-import tempfile
-import subprocess
-import multiprocessing
 import cPickle as pickle
 from itertools import islice, izip
 
