@@ -1,5 +1,0 @@
-termcolor
-redis
-celery
-dpkt-fix
-tracer
