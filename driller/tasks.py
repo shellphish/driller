@@ -57,6 +57,7 @@ def fuzz(binary):
     else:
         l.warning("unable to find pcap file, will seed fuzzer with the default")
 
+    # TODO enable dictionary creation, this may require fixing parts of the fuzzer module
     fzr = fuzzer.Fuzzer(binary_path, config.FUZZER_WORK_DIR, config.FUZZER_INSTANCES, seeds)
 
     early_crash = False
