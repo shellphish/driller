@@ -6,7 +6,7 @@ REDIS_DB=1
 ### Celery Options
 BROKER_URL="amqp://guest@localhost//"
 
-CELERY_ROUTES = {'fuzzer.tasks.fuzz': {'queue': 'fuzzer'}, 'driller.tasks.drill': {'queue': 'driller'}}
+CELERY_ROUTES = {'driller.tasks.fuzz': {'queue': 'fuzzer'}, 'driller.tasks.drill': {'queue': 'driller'}}
 
 ### Environment Options
 
