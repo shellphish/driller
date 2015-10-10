@@ -42,6 +42,30 @@ def drill(binary, input_data, bitmap_hash, tag):
         l.error("encountered %r exception when drilling into \"%s\"", e, binary)
         l.error("input was %r", input_data)
 
+def request_drilling(fzr):
+    '''
+    request a drilling job on a fuzzer object
+    '''
+
+    bitmap_f = os.path.join(fzr.out_dir, "fuzzer-1", "fuzz_bitmap")
+    bitmap_data = open(bitmap_f, "rb").read()
+    bitmap_hash = hashlib.sha256(bitmap_data).hexdigest()
+
+    redis_inst = redis.Redis(connection_pool=redis_pool)
+    redis_inst.hset(fzr.binary_id + '-bitmaps', bitmap_hash, bitmap_data)
+
+    in_dir = os.path.join(fzr.out_dir, "fuzzer-1", "queue")
+
+    # ignore hidden files
+    inputs = filter(lambda d: not d.startswith('.'), os.listdir(in_dir))
+
+    # submit a driller job for each item in the queue
+    for input_file in inputs:
+        input_data_path = os.path.join(in_dir, input_file)
+        input_data = open(input_data_path, "rb").read()
+        l.info("sending the request to driller!")
+        drill.delay(fzr.binary_id, input_data, bitmap_hash, get_fuzzer_id(input_data_path))
+
 @app.task
 def fuzz(binary):
 
@@ -66,32 +90,17 @@ def fuzz(binary):
 
         # TODO start up a listener for driller results and add it to the procs list of the fuzzer
 
+        # TODO clean redis store
+
         # start the fuzzer and poll for a crash, timeout, or driller assistance
         while not fzr.found_crash() and not fzr.timed_out():
-            time.sleep(config.CRASH_CHECK_INTERVAL)
-            # TODO make this a function
             # check to see if driller should be invoked
-            if not int(fzr.stats['fuzzer-1']['pending_favs']) > 0:
-                l.info("[%s] driller being invoked!", binary)
+            if 'fuzzer-1' in fzr.stats and 'pending_favs' in fzr.stats['fuzzer-1']:
+                if not int(fzr.stats['fuzzer-1']['pending_favs']) > 0:
+                    l.info("[%s] driller being requested!", binary)
+                    request_drilling(fzr)
 
-                bitmap_f = os.path.join(fzr.out_dir, "fuzzer-1", "fuzz_bitmap")
-                bitmap_data = open(bitmap_f, "rb").read()
-                bitmap_hash = hashlib.sha256(bitmap_data).hexdigest()
-
-                redis_inst = redis.Redis(connection_pool=redis_pool)
-                redis_inst.hset(binary + '-bitmaps', bitmap_hash, bitmap_data)
-
-                in_dir = os.path.join(fzr.out_dir, "fuzzer-1", "queue")
-
-                # ignore hidden files
-                inputs = filter(lambda d: not d.startswith('.'), os.listdir(in_dir))
-
-                # submit a driller job for each item in the queue
-                for input_file in inputs:
-                    input_data_path = os.path.join(in_dir, input_file)
-                    input_data = open(input_data_path, "rb").read()
-                    l.info("sending the request to driller!")
-                    drill.delay(fzr.binary_id, input_data, bitmap_hash, get_fuzzer_id(input_data_path))
+            time.sleep(config.CRASH_CHECK_INTERVAL)
 
         # make sure to kill the fuzzers when we're done
         fzr.kill()
