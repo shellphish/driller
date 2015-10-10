@@ -43,6 +43,23 @@ def drill(binary, input_data, bitmap_hash, tag):
         l.error("encountered %r exception when drilling into \"%s\"", e, binary)
         l.error("input was %r", input_data)
 
+def input_filter(fuzzer_dir, inputs):
+
+    traced_cache = os.path.join(fuzzer_dir, "traced")
+
+    traced_inputs = set()
+    if os.path.isfile(traced_cache):
+        with open(traced_cache, 'rb') as f:
+            traced_inputs = set(f.read().split('\n'))
+
+    new_inputs = filter(lambda i: i not in traced_inputs, inputs)
+
+    with open(traced_cache, 'ab') as f:
+        for new_input in new_inputs:
+            f.write("%s\n" % new_input)
+
+    return new_inputs
+
 def request_drilling(fzr):
     '''
     request a drilling job on a fuzzer object
@@ -59,6 +76,9 @@ def request_drilling(fzr):
 
     # ignore hidden files
     inputs = filter(lambda d: not d.startswith('.'), os.listdir(in_dir))
+
+    # filter inputs which have already been sent to driller
+    inputs = input_filter(os.path.join(fzr.out_dir, "fuzzer-1"), inputs)
 
     # submit a driller job for each item in the queue
     for input_file in inputs:
