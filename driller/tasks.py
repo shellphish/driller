@@ -5,6 +5,7 @@ import redis
 import fuzzer
 import logging
 import hashlib
+import subprocess
 from celery import Celery
 import config
 from .driller import Driller
@@ -63,8 +64,45 @@ def request_drilling(fzr):
     for input_file in inputs:
         input_data_path = os.path.join(in_dir, input_file)
         input_data = open(input_data_path, "rb").read()
-        l.info("sending the request to driller!")
         drill.delay(fzr.binary_id, input_data, bitmap_hash, get_fuzzer_id(input_data_path))
+
+def start_listener(fzr):
+    '''
+    start a listener for driller inputs
+    '''
+
+    driller_queue_dir = os.path.join(fzr.out_dir, "driller", "queue")
+    channel = "%s-generated" % fzr.binary_id
+
+    # find the bin directory listen.py will be installed in
+    base = os.path.dirname(__file__)
+
+    while not "bin" in os.listdir(base) and os.path.abspath(base) != "/":
+        base = os.path.join(base, "..")
+
+    if os.path.abspath(base) == "/":
+        raise Exception("could not find driller listener install directory")
+
+    args = [os.path.join(base, "bin", "driller", "listen.py"), driller_queue_dir, channel]
+    p = subprocess.Popen(args)
+
+    # add the proc to the fuzzer's list of processes
+    fzr.procs.append(p)
+
+def clean_redis(fzr):
+    redis_inst = redis.Redis(connection_pool=redis_pool)
+
+    # delete all catalogued inputs
+    redis_inst.delete("%s-catalogue" % fzr.binary_id)
+
+    # delete all the traced entries
+    redis_inst.delete("%s-traced" % fzr.binary_id)
+
+    # delete the finished entry
+    redis_inst.delete("%s-finsihed" % fzr.binary_id)
+
+    # delete the fuzz bitmaps
+    redis_inst.delete("%s-bitmaps" % fzr.binary_id)
 
 @app.task
 def fuzz(binary):
@@ -88,9 +126,11 @@ def fuzz(binary):
     try:
         fzr.start()
 
-        # TODO start up a listener for driller results and add it to the procs list of the fuzzer
+        # start a listening for inputs produced by driller
+        start_listener(fzr)
 
-        # TODO clean redis store
+        # clean all stale redis data
+        clean_redis(fzr)
 
         # start the fuzzer and poll for a crash, timeout, or driller assistance
         while not fzr.found_crash() and not fzr.timed_out():
