@@ -63,7 +63,12 @@ def input_filter(fuzzer_dir, inputs):
 def request_drilling(fzr):
     '''
     request a drilling job on a fuzzer object
+
+    :param fzr: fuzzer object to request drilling on behalf of, this is needed to fine the input input queue
+    :return: list of celery AsyncResults, we accumulate these so we can revoke them if need be
     '''
+
+    d_jobs = [ ]
 
     bitmap_f = os.path.join(fzr.out_dir, "fuzzer-1", "fuzz_bitmap")
     bitmap_data = open(bitmap_f, "rb").read()
@@ -84,7 +89,9 @@ def request_drilling(fzr):
     for input_file in inputs:
         input_data_path = os.path.join(in_dir, input_file)
         input_data = open(input_data_path, "rb").read()
-        drill.delay(fzr.binary_id, input_data, bitmap_hash, get_fuzzer_id(input_data_path))
+        d_jobs.append(drill.delay(fzr.binary_id, input_data, bitmap_hash, get_fuzzer_id(input_data_path)))
+
+    return d_jobs
 
 def start_listener(fzr):
     '''
@@ -152,13 +159,16 @@ def fuzz(binary):
         # clean all stale redis data
         clean_redis(fzr)
 
+        # list of 'driller request' each is a celery async result object
+        driller_jobs = [ ]
+
         # start the fuzzer and poll for a crash, timeout, or driller assistance
         while not fzr.found_crash() and not fzr.timed_out():
             # check to see if driller should be invoked
             if 'fuzzer-1' in fzr.stats and 'pending_favs' in fzr.stats['fuzzer-1']:
                 if not int(fzr.stats['fuzzer-1']['pending_favs']) > 0:
                     l.info("[%s] driller being requested!", binary)
-                    request_drilling(fzr)
+                    driller_jobs.extend(request_drilling(fzr))
 
             time.sleep(config.CRASH_CHECK_INTERVAL)
 
@@ -169,10 +179,18 @@ def fuzz(binary):
         l.info("binary crashed on dummy testcase, moving on...")
         early_crash = True
 
+    # we found a crash!
     if early_crash or fzr.found_crash():
         l.info("found crash for \"%s\"", binary)
+
+        # publish the crash
         redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
         redis_inst.publish("crashes", binary)
+
+        # revoke any driller jobs which are still working
+        for job in driller_jobs:
+            if job.status == 'PENDING':
+                job.revoke(terminate=True)
 
     if fzr.timed_out():
         l.info("timed out while fuzzing \"%s\"", binary)
