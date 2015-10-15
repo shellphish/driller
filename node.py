@@ -33,7 +33,7 @@ def driller_node(n, outfile, errfile):
         return 1
 
     l.info("spinning up a driller node with %d workers", n)
-    args = ["celery", "-A", "driller.tasks", "worker", "-c", str(n), "-Q", "driller", "--loglevel=info", "driller.%%h"]
+    args = ["celery", "-A", "driller.tasks", "worker", "-c", str(n), "-Q", "driller", "--loglevel=info", "driller.%h"]
 
     with open(outfile, "w") as o:
         with open(errfile, "w") as e:
@@ -46,7 +46,7 @@ def fuzzer_node(n, outfile, errfile):
 
     l.info("spinning up a fuzzer node with %d workers", n)
 
-    args = ["celery", "-A", "driller.tasks", "worker", "-c", str(n), "-Q", "fuzzer", "--loglevel=info", "-Ofair", "-n", "fuzzer.%%h"]
+    args = ["celery", "-A", "driller.tasks", "worker", "-c", str(n), "-Q", "fuzzer", "--loglevel=info", "-Ofair", "-n", "fuzzer.%h"]
 
     with open(outfile, "w") as o:
         with open(errfile, "w") as e:
