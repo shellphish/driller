@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import logging
-import logconfig
 
 # silence these loggers
 logging.getLogger().setLevel("CRITICAL")
@@ -13,7 +12,7 @@ l.setLevel("INFO")
 import os
 import sys
 import redis
-import fuzzer.tasks
+import driller.tasks
 import driller.config as config
 
 '''
@@ -59,7 +58,7 @@ def start(binary_dir):
     l.info("going to work on %d", len(jobs))
 
     for binary in jobs:
-        fuzzer.tasks.fuzz.delay(binary)
+        driller.tasks.fuzz.delay(binary)
 
     l.info("listening for crashes..")
 
