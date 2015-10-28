@@ -142,6 +142,7 @@ def fuzz(binary):
     # look for a pcap
     pcap_path = os.path.join(config.PCAP_DIR, "%s.pcap" % binary)
     if os.path.isfile(pcap_path):
+        l.info("found pcap for binary %s.pcap", binary)
         seeds = pcap.process(pcap_path)
     else:
         l.warning("unable to find pcap file, will seed fuzzer with the default")
