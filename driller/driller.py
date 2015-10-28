@@ -107,7 +107,10 @@ class Driller(object):
 
         self._drill_input()
 
-        return len(self._generated)
+        if self.redis:
+            return len(self._generated)
+        else:
+            return self._generated
 
     def _drill_input(self):
         '''
