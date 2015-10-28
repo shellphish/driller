@@ -142,13 +142,13 @@ def fuzz(binary):
     # look for a pcap
     pcap_path = os.path.join(config.PCAP_DIR, "%s.pcap" % binary)
     if os.path.isfile(pcap_path):
-        l.info("found pcap for binary %s.pcap", binary)
+        l.info("found pcap for binary %s", binary)
         seeds = pcap.process(pcap_path)
     else:
         l.warning("unable to find pcap file, will seed fuzzer with the default")
 
     # TODO enable dictionary creation, this may require fixing parts of the fuzzer module
-    fzr = fuzzer.Fuzzer(binary_path, config.FUZZER_WORK_DIR, config.FUZZER_INSTANCES, seeds, create_dictionary=True)
+    fzr = fuzzer.Fuzzer(binary_path, config.FUZZER_WORK_DIR, config.FUZZER_INSTANCES, seeds=seeds, create_dictionary=True)
 
     early_crash = False
     try:
