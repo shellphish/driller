@@ -4,10 +4,7 @@ l = logging.getLogger("driller.Driller")
 
 import tracer
 
-import cle
 import angr
-import simuvex
-import archinfo
 
 import os
 import time
@@ -16,7 +13,7 @@ import resource
 import cPickle as pickle
 from itertools import islice, izip
 
-from simprocedures import cgc_simprocedures
+from .simprocedures import cgc_simprocedures
 
 import config
 
@@ -72,9 +69,9 @@ class Driller(object):
             raise DrillerEnvironmentError
 
 ### ENVIRONMENT CHECKS AND OBJECT SETUP
-         
+
     def _sane(self):
-        ''' 
+        '''
         make sure the environment will allow us to run without any hitches
         '''
         ret = True
@@ -124,7 +121,7 @@ class Driller(object):
         # update encounters with known state transitions
         self._encounters.update(izip(t.trace, islice(t.trace, 1, None)))
 
-        l.debug("drilling into %r" % self.input)
+        l.debug("drilling into %r", self.input)
         l.debug("input is %r", self.input)
 
         # used for finding the right index in the fuzz_bitmap
@@ -153,13 +150,13 @@ class Driller(object):
 
                     transition = (prev_addr, path.addr)
 
-                    l.debug("found %x -> %x transition" % transition)
+                    l.debug("found %x -> %x transition", transition[0], transition[1])
 
                     if not hit and not self._has_encountered(transition):
                         t.remove_preconstraints(path)
 
                         if path.state.satisfiable():
-                            # a completely new state transitions, let's try to accelerate AFL 
+                            # a completely new state transitions, let's try to accelerate AFL
                             # by finding  a number of deeper inputs
                             l.info("found a completely new transition, exploring to some extent")
                             self._writeout(prev_addr, path)
@@ -168,13 +165,13 @@ class Driller(object):
                             l.debug("path to %#x was not satisfiable", transition[1])
 
                     else:
-                        l.debug("%x -> %x has already been encountered" % transition)
+                        l.debug("%x -> %x has already been encountered", transition[0], transition[1])
 
             try:
                 branches = t.next_branch()
             except IndexError:
                 branches.active = [ ]
-            
+
 ### EXPLORER
     def _symbolic_explorer_stub(self, path):
         # create a new path group and step it forward up to 1024 accumulated active paths or steps
