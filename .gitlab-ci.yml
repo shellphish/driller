@@ -1,0 +1,7 @@
+before_script:
+    - angr-test sync hard
+
+driller:
+    script: "angr-test driller"
+    tags:
+        - "angr"
