@@ -116,7 +116,7 @@ class Driller(object):
         '''
 
         # initialize the tracer
-        t = tracer.Tracer(self.binary, self.input, cgc_simprocedures)
+        t = tracer.Tracer(self.binary, self.input, simprocedures=cgc_simprocedures)
 
         # update encounters with known state transitions
         self._encounters.update(izip(t.trace, islice(t.trace, 1, None)))
