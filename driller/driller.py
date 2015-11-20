@@ -197,7 +197,8 @@ class Driller(object):
         pg.stash(from_stash='deadended', to_stash='active')
         for dumpable in pg.active:
             try:
-                self._writeout(dumpable.addr_backtrace[-1], dumpable)
+                if dumpable.state.satisfiable():
+                    self._writeout(dumpable.addr_backtrace[-1], dumpable)
             except IndexError: # if the path we're trying to dump wasn't actually satisfiable
                 pass
 
