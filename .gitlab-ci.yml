@@ -3,5 +3,8 @@ before_script:
 
 driller:
     script: "angr-test driller"
-    tags:
-        - "angr"
+    tags: [angr]
+
+lint:
+    script: "angr-test lint"
+    tags: [angr]
