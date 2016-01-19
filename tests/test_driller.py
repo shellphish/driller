@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("driller.tests.test_driller")
 
 import os
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries'))
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
 
 def test_drilling_cgc():
     '''
