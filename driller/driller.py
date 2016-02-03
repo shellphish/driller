@@ -136,7 +136,7 @@ class Driller(object):
 
             # mimic AFL's indexing scheme
             if len(branches.missed) > 0:
-                prev_addr = branches.missed[0].addr_backtrace[-1] # a bit ugly
+                prev_addr = branches.missed[0].addr_trace[-1] # a bit ugly
                 prev_loc = prev_addr
                 prev_loc = (prev_loc >> 4) ^ (prev_loc << 8)
                 prev_loc &= self.fuzz_bitmap_size - 1
@@ -198,7 +198,7 @@ class Driller(object):
         for dumpable in pg.active:
             try:
                 if dumpable.state.satisfiable():
-                    self._writeout(dumpable.addr_backtrace[-1], dumpable)
+                    self._writeout(dumpable.addr_trace[-1], dumpable)
             except IndexError: # if the path we're trying to dump wasn't actually satisfiable
                 pass
 
