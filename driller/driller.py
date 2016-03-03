@@ -15,7 +15,7 @@ from itertools import islice, izip
 
 from .simprocedures import cgc_simprocedures
 
-import config
+import config #pylint:disable=relative-import
 
 class DrillerEnvironmentError(Exception):
     pass
@@ -28,7 +28,7 @@ class Driller(object):
     Driller object, symbolically follows an input looking for new state transitions
     '''
 
-    def __init__(self, binary, input, fuzz_bitmap, tag, redis=None):
+    def __init__(self, binary, input, fuzz_bitmap, tag, redis=None): #pylint:disable=redefined-builtin
         '''
         :param binary: the binary to be traced
         :param input: input string to feed to the binary
@@ -98,16 +98,24 @@ class Driller(object):
         if self.redis:
             self.redis.sadd(self.identifier + '-traced', self.input)
 
-        # set up alarm for timeouts
-        if config.DRILL_TIMEOUT is not None:
-            signal.alarm(config.DRILL_TIMEOUT)
-
-        self._drill_input()
+        list(self._drill_input())
 
         if self.redis:
             return len(self._generated)
         else:
             return self._generated
+
+    def drill_generator(self):
+        '''
+        A generator interface to the actual drilling.
+        '''
+
+        # set up alarm for timeouts
+        if config.DRILL_TIMEOUT is not None:
+            signal.alarm(config.DRILL_TIMEOUT)
+
+        for i in self._drill_input():
+            yield i
 
     def _drill_input(self):
         '''
@@ -136,7 +144,7 @@ class Driller(object):
 
             # mimic AFL's indexing scheme
             if len(branches.missed) > 0:
-                prev_addr = branches.missed[0].addr_backtrace[-1] # a bit ugly
+                prev_addr = branches.missed[0].addr_trace[-1] # a bit ugly
                 prev_loc = prev_addr
                 prev_loc = (prev_loc >> 4) ^ (prev_loc << 8)
                 prev_loc &= self.fuzz_bitmap_size - 1
@@ -159,8 +167,11 @@ class Driller(object):
                             # a completely new state transitions, let's try to accelerate AFL
                             # by finding  a number of deeper inputs
                             l.info("found a completely new transition, exploring to some extent")
-                            self._writeout(prev_addr, path)
-                            self._symbolic_explorer_stub(path)
+                            w = self._writeout(prev_addr, path)
+                            if w is not None:
+                                yield w
+                            for i in self._symbolic_explorer_stub(path):
+                                yield i
                         else:
                             l.debug("path to %#x was not satisfiable", transition[1])
 
@@ -198,7 +209,9 @@ class Driller(object):
         for dumpable in pg.active:
             try:
                 if dumpable.state.satisfiable():
-                    self._writeout(dumpable.addr_backtrace[-1], dumpable)
+                    w = self._writeout(dumpable.addr_trace[-1], dumpable)
+                    if w is not None:
+                        yield w
             except IndexError: # if the path we're trying to dump wasn't actually satisfiable
                 pass
 
@@ -261,3 +274,5 @@ class Driller(object):
             self.redis.publish(channel, pickle.dumps({'meta': key, 'data': generated, "tag": self.tag}))
         else:
             l.info("generated: %s", generated.encode('hex'))
+
+        return (key, generated)
