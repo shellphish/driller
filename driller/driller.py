@@ -136,7 +136,7 @@ class Driller(object):
         prev_loc = 0
 
         branches = t.next_branch()
-        while len(branches.active) > 0:
+        while len(branches.active) > 0 and t.bb_cnt < len(t.trace):
 
             # check here to see if a crash has been found
             if self.redis and self.redis.sismember(self.identifier + "-finished", True):
