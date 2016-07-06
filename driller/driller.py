@@ -28,12 +28,13 @@ class Driller(object):
     Driller object, symbolically follows an input looking for new state transitions
     '''
 
-    def __init__(self, binary, input, fuzz_bitmap, tag, redis=None): #pylint:disable=redefined-builtin
+    def __init__(self, binary, input, fuzz_bitmap, tag, redis=None, hooks=None): #pylint:disable=redefined-builtin
         '''
         :param binary: the binary to be traced
         :param input: input string to feed to the binary
         :param fuzz_bitmap: AFL's bitmap of state transitions
         :param redis: redis.Redis instance for coordinating multiple Driller instances
+        :param hooks: dictionary of addresses to simprocedures
         '''
 
         self.binary      = binary
@@ -45,6 +46,9 @@ class Driller(object):
         self.redis       = redis
 
         self.base = os.path.join(os.path.dirname(__file__), "..")
+
+        # the simprocedures
+        self._hooks = {} if hooks is None else hooks
 
         # set of encountered basic block transition
         self._encounters = set()
@@ -124,7 +128,7 @@ class Driller(object):
         '''
 
         # initialize the tracer
-        t = tracer.Tracer(self.binary, self.input, simprocedures=cgc_simprocedures)
+        t = tracer.Tracer(self.binary, self.input, simprocedures=cgc_simprocedures, hooks=self._hooks)
 
         # update encounters with known state transitions
         self._encounters.update(izip(t.trace, islice(t.trace, 1, None)))
