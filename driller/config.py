@@ -1,42 +1,42 @@
 ### Redis Options
-REDIS_HOST="localhost"
-REDIS_PORT=6379
-REDIS_DB=1
+REDIS_HOST=None
+REDIS_PORT=None
+REDIS_DB=None
 
 ### Celery Options
-BROKER_URL="amqp://guest@localhost//"
+BROKER_URL= None
 
-CELERY_ROUTES = {'driller.tasks.fuzz': {'queue': 'fuzzer'}, 'driller.tasks.drill': {'queue': 'driller'}}
+CELERY_ROUTES = None
 
 ### Environment Options
 
 # directory contain driller-qemu versions, relative to the directoy node.py is invoked in
-QEMU_DIR="driller-qemu"
+QEMU_DIR=None
 
 # directory containing the binaries, used by the driller node to find binaries
-BINARY_DIR="/cgc/binaries/"
+BINARY_DIR=None
 # directory containing the pcap corpus
-PCAP_DIR="/cgc/pcaps/"
+PCAP_DIR=None
 
 ### Driller options
 # how long to drill before giving up in seconds
-DRILL_TIMEOUT=60 * 40 # 60 minutes
+DRILL_TIMEOUT=None
 
-MEM_LIMIT=8 * 1024 * 1024 * 1024
+MEM_LIMIT=None
 
 ### Fuzzer options
 
 # how often to check for crashes in seconds
-CRASH_CHECK_INTERVAL=60
+CRASH_CHECK_INTERVAL=None
 
 # how long to fuzz before giving up in seconds
-FUZZ_TIMEOUT=60 * 60 * 24
+FUZZ_TIMEOUT=None
 
 # how long before we kill a dictionary creation process
-DICTIONARY_TIMEOUT=60 * 60 # 1 hour
+DICTIONARY_TIMEOUT=None
 
 # how many fuzzers should be spun up when a fuzzing job is received
-FUZZER_INSTANCES=4
+FUZZER_INSTANCES=None
 
 # where the fuzzer should place it's results on the filesystem
-FUZZER_WORK_DIR="/dev/shm/work"
+FUZZER_WORK_DIR=None
