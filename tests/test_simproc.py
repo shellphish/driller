@@ -9,9 +9,9 @@ import os
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
 
 
-def test_drilling_cgc():
+def test_simproc_drilling():
     """
-    test drilling on the cgc binary, palindrome.
+    test drilling on the cgc binary palindrome with simprocedures.
     """
 
     binary = "tests/i386/driller_simproc"
