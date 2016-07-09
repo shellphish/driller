@@ -13,8 +13,6 @@ import resource
 import cPickle as pickle
 from itertools import islice, izip
 
-from .simprocedures import cgc_simprocedures
-
 import config #pylint:disable=relative-import
 
 class DrillerEnvironmentError(Exception):
@@ -128,7 +126,7 @@ class Driller(object):
         '''
 
         # initialize the tracer
-        t = tracer.Tracer(self.binary, self.input, simprocedures=cgc_simprocedures, hooks=self._hooks)
+        t = tracer.Tracer(self.binary, self.input, hooks=self._hooks)
 
         # update encounters with known state transitions
         self._encounters.update(izip(t.trace, islice(t.trace, 1, None)))
