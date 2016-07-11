@@ -128,6 +128,9 @@ class Driller(object):
         # initialize the tracer
         t = tracer.Tracer(self.binary, self.input, hooks=self._hooks)
 
+        self._set_concretizations(t)
+        self._set_simproc_limits(t)
+
         # update encounters with known state transitions
         self._encounters.update(izip(t.trace, islice(t.trace, 1, None)))
 
@@ -219,6 +222,24 @@ class Driller(object):
 
 
 ### UTILS
+
+    @staticmethod
+    def _set_simproc_limits(t):
+        state = t.path_group.one_active.state
+        state.libc.max_str_len = 1000000
+        state.libc.max_strtol_len = 10
+        state.libc.max_memcpy_size = 0x100000
+        state.libc.max_symbolic_bytes = 100
+        state.libc.max_buffer_size = 0x100000
+
+    @staticmethod
+    def _set_concretizations(t):
+        state = t.path_group.one_active.state
+        flag_var = list(state.memory.load(0x4347c000, 1).variables)[0]
+        state.unicorn.always_concretize.add(flag_var)
+        # let's put conservative thresholds for now
+        state.unicorn.concretization_threshold_memory = 50000
+        state.unicorn.concretization_threshold_registers = 50000
 
     def _has_encountered(self, transition):
         return transition in self._encounters
