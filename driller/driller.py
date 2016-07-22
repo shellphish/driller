@@ -165,7 +165,7 @@ class Driller(object):
 
                     l.debug("found %x -> %x transition", transition[0], transition[1])
 
-                    if not hit and not self._has_encountered(transition):
+                    if not hit and not self._has_encountered(transition) and not self._has_false(path):
                         t.remove_preconstraints(path)
 
                         if path.state.satisfiable():
@@ -235,14 +235,28 @@ class Driller(object):
     @staticmethod
     def _set_concretizations(t):
         state = t.path_group.one_active.state
-        flag_var = list(state.memory.load(0x4347c000, 1).variables)[0]
-        state.unicorn.always_concretize.add(flag_var)
+        flag_vars = set()
+        for b in t.cgc_flag_bytes:
+            flag_vars.update(b.variables)
+        state.unicorn.always_concretize.update(flag_vars)
         # let's put conservative thresholds for now
         state.unicorn.concretization_threshold_memory = 50000
         state.unicorn.concretization_threshold_registers = 50000
 
     def _has_encountered(self, transition):
         return transition in self._encounters
+
+    @staticmethod
+    def _has_false(path):
+        # check if the path is unsat even if we remove preconstraints
+        claripy_false = path.state.se.false
+        if path.state.scratch.guard.cache_key == claripy_false.cache_key:
+            return True
+
+        for c in path.state.se.constraints:
+            if c.cache_key == claripy_false.cache_key:
+                return True
+        return False
 
     def _in_catalogue(self, length, prev_addr, next_addr):
         '''
