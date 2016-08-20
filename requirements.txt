@@ -6,5 +6,5 @@ simuvex
 archinfo
 dpkt-fix
 termcolor
-git+ssh://git@git.seclab.cs.ucsb.edu:/cgc/tracer.git#egg=tracer
-git+ssh://git@git.seclab.cs.ucsb.edu:/cgc/fuzzer.git#egg=fuzzer
+git+https://github.com/angr/tracer.git#egg=tracer
+git+https://github.com/shellphish/fuzzer.git#egg=fuzzer
