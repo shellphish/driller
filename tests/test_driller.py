@@ -5,14 +5,14 @@ import logging
 l = logging.getLogger("driller.tests.test_driller")
 
 import os
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries'))
 
 def test_drilling_cgc():
     '''
     test drilling on the cgc binary, palindrome.
     '''
 
-    binary = "cgc_scored_event_1/cgc/0b32aa01_01"
+    binary = "tests/cgc/sc1_0b32aa01_01"
     # fuzzbitmap says every transition is worth satisfying
     d = driller.Driller(os.path.join(bin_location, binary), "AAAA", "\xff"*65535, "whatever~")
 
