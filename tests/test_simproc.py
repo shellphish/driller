@@ -6,7 +6,7 @@ import logging
 l = logging.getLogger("driller.tests.test_driller_simproc")
 
 import os
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries'))
 
 
 def test_simproc_drilling():
