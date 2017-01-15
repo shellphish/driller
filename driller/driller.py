@@ -162,10 +162,11 @@ class Driller(object):
                     hit = bool(ord(self.fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
 
                     transition = (prev_addr, path.addr)
+                    mapped_to = branches.missed[0]._project.loader.addr_belongs_to_object(path.addr).binary
 
                     l.debug("found %x -> %x transition", transition[0], transition[1])
 
-                    if not hit and not self._has_encountered(transition) and not self._has_false(path):
+                    if not hit and not self._has_encountered(transition) and not self._has_false(path) and mapped_to != "##angr_externs##":
                         t.remove_preconstraints(path)
 
                         if path.state.satisfiable():
