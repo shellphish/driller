@@ -136,8 +136,10 @@ def _get_seeds():
     Search config.SEED_PATH for seed inputs.
     If no seed files are found, then seed with 'fuzz'.
     '''
+    default_seed = 'fuzz'
+
     if not config.SEED_DIR:
-        return ['fuzz']
+        return [default_seed]
 
     seed_path = config.SEED_DIR
     seeds = []
@@ -151,10 +153,10 @@ def _get_seeds():
 
         if len(seeds) == 0:
             l.warning("Seed directory has no seeds. Using default seed.")
-            seeds.append('fuzz')
+            seeds.append(default_seed)
     else:
         l.warning("Seeding with default as seed directory is not a valid path: %s", seed_path)
-        seeds.append('fuzz')
+        seeds.append(default_seed)
 
     return seeds
 
