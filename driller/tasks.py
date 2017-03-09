@@ -131,14 +131,43 @@ def clean_redis(fzr):
     # delete the fuzz bitmaps
     redis_inst.delete("%s-bitmaps" % fzr.binary_id)
 
+def _check_for_instrumented(binary):
+    '''
+    Check for an AFL instrumented version of this binary. Does the check by name
+    and searches in BINARY_DIR/INSTRUMENTED_DIR found in config file.
+    :param binary: name of binary
+    :return: True for found instrumented binary, False otherwise
+    '''
+    if config.INSTRUMENTED_DIR is None:
+        l.debug("There is no instrumented binary directory.")
+        return False
+
+    instrumented_path = os.path.join(config.BINARY_DIR, config.INSTRUMENTED_DIR)
+    if os.path.isdir(instrumented_path):
+        if binary in os.listdir(instrumented_path):
+            l.info("Found instrumented binary for %s", binary)
+            return True
+        l.info("No instrumented binary found for %s", binary)
+        return False
+
+    l.warning("Instrumented path does not seem to exist:")
+    l.warning("%r", instrumented_path)
+    return False
+
 @app.task
 def fuzz(binary):
 
     l.info("beginning to fuzz \"%s\"", binary)
 
-    binary_path = os.path.join(config.BINARY_DIR, binary)
+    instrumented_check = _check_for_instrumented(binary)
+
+    fuzz_binary = binary
+    if instrumented_check:
+        fuzz_binary = os.path.join(config.INSTRUMENTED_DIR, binary)
+        fuzz_binary_path = os.path.join(config.BINARY_DIR, fuzz_binary)
 
     seeds = ["fuzz"]
+
     # look for a pcap
     pcap_path = os.path.join(config.PCAP_DIR, "%s.pcap" % binary)
     if os.path.isfile(pcap_path):
@@ -147,8 +176,13 @@ def fuzz(binary):
     else:
         l.warning("unable to find pcap file, will seed fuzzer with the default")
 
+    if instrumented_check:
+        qemu = False
+    else:
+        qemu = True
     # TODO enable dictionary creation, this may require fixing parts of the fuzzer module
-    fzr = fuzzer.Fuzzer(binary_path, config.FUZZER_WORK_DIR, config.FUZZER_INSTANCES, seeds=seeds, create_dictionary=True)
+    fzr = fuzzer.Fuzzer(fuzz_binary_path, config.FUZZER_WORK_DIR, config.FUZZER_INSTANCES,
+                        seeds=seeds, qemu=qemu, create_dictionary=True)
 
     early_crash = False
     try:
