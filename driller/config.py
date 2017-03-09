@@ -24,6 +24,12 @@ DRILL_TIMEOUT=None
 
 MEM_LIMIT=None
 
+# where to write a debug file that contains useful debugging information like
+# AFL's fuzzing bitmap, input used, binary path, time started.
+# Uses following naming convention:
+#   <binary_basename>_<input_str_md5>.py
+DEBUG_DIR = None
+
 ### Fuzzer options
 
 # how often to check for crashes in seconds
