@@ -131,6 +131,33 @@ def clean_redis(fzr):
     # delete the fuzz bitmaps
     redis_inst.delete("%s-bitmaps" % fzr.binary_id)
 
+def _get_seeds():
+    '''
+    Search config.SEED_PATH for seed inputs.
+    If no seed files are found, then seed with 'fuzz'.
+    '''
+    if not config.SEED_DIR:
+        return ['fuzz']
+
+    seed_path = config.SEED_DIR
+    seeds = []
+    if os.path.isdir(seed_path):
+        # only get the files
+        f_seeds = [f for f in os.listdir(seed_path)
+                   if os.path.isfile(os.path.join(seed_path, f))]
+        for f_seed in f_seeds:
+            with open(os.path.join(seed_path, f_seed), 'rb') as f:
+                seeds.append(f.read())
+
+        if len(seeds) == 0:
+            l.warning("Seed directory has no seeds. Using default seed.")
+            seeds.append('fuzz')
+    else:
+        l.warning("Seeding with default as seed directory is not a valid path: %s", seed_path)
+        seeds.append('fuzz')
+
+    return seeds
+
 @app.task
 def fuzz(binary):
 
@@ -138,7 +165,8 @@ def fuzz(binary):
 
     binary_path = os.path.join(config.BINARY_DIR, binary)
 
-    seeds = ["fuzz"]
+    seeds = _get_seeds()
+
     # look for a pcap
     pcap_path = os.path.join(config.PCAP_DIR, "%s.pcap" % binary)
     if os.path.isfile(pcap_path):

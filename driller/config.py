@@ -17,6 +17,8 @@ QEMU_DIR=None
 BINARY_DIR=None
 # directory containing the pcap corpus
 PCAP_DIR=None
+# directory containing the seeds for fuzzing
+SEED_DIR=None
 
 ### Driller options
 # how long to drill before giving up in seconds
