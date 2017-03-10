@@ -12,6 +12,7 @@ import signal
 import resource
 import cPickle as pickle
 from itertools import islice, izip
+import hashlib
 
 import config #pylint:disable=relative-import
 
@@ -95,6 +96,12 @@ class Driller(object):
         if self.redis and self.redis.sismember(self.identifier + '-traced', self.input):
             # don't re-trace the same input
             return -1
+
+        # Write out debug info if desired
+        if l.level == logging.DEBUG and config.DEBUG_DIR:
+            self._write_debug_info()
+        elif l.level == logging.DEBUG and not config.DEBUG_DIR:
+            l.warning("Debug directory is not set. Will not log fuzzing bitmap.")
 
         # update traced
         if self.redis:
@@ -313,3 +320,15 @@ class Driller(object):
             l.info("generated: %s", generated.encode('hex'))
 
         return (key, generated)
+
+    def _write_debug_info(self):
+        m = hashlib.md5()
+        m.update(self.input)
+        f_name = os.path.join(config.DEBUG_DIR,
+                              self.identifier + '_' + m.hexdigest() + '.py')
+        with open(f_name, 'w+') as f:
+            l.debug("Wrote debug log to %s", f_name)
+            f.write("binary = %r\n" % self.binary +
+                    "started = '%s'\n" % time.ctime(self.start_time) +
+                    "input = %r\n" % self.input +
+                    "fuzz_bitmap = %r" % self.fuzz_bitmap)
