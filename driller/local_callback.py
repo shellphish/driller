@@ -2,23 +2,22 @@ import os
 import sys
 import signal
 import logging
+import driller #pylint:disable=relative-import,unused-import
 import subprocess
 import multiprocessing
 
-from .driller import Driller
-
 l = logging.getLogger("local_callback")
 
-def _run_drill(driller_manager, _path_to_input_to_drill):
-    _binary_path = driller_manager.binary_path
-    _fuzzer_out_dir = driller_manager.fuzzer.out_dir
-    _bitmap_path = os.path.join(fuzzer_out_dir, 'fuzzer-master', "fuzz_bitmap")
-    _timeout = driller_manager._worker_timeout
+def _run_drill(drill, fuzz, _path_to_input_to_drill):
+    _binary_path = fuzz.binary_path
+    _fuzzer_out_dir = fuzz.out_dir
+    _bitmap_path = os.path.join(_fuzzer_out_dir, 'fuzzer-master', "fuzz_bitmap")
+    _timeout = drill._worker_timeout
     l.warning("starting drilling of %s, %s", os.path.basename(_binary_path), os.path.basename(_path_to_input_to_drill))
     args = (
         "timeout", "-k", str(_timeout+10), str(_timeout),
         sys.executable, os.path.abspath(__file__),
-        _binary_path, _fuzzer_out_dir, _bitmap_path, path_to_input_to_drill
+        _binary_path, _fuzzer_out_dir, _bitmap_path, _path_to_input_to_drill
     )
 
     p = subprocess.Popen(args, stdout=subprocess.PIPE)
@@ -67,7 +66,7 @@ class LocalCallback(object):
             not_drilled.remove(to_drill_path)
             self._already_drilled_inputs.add(to_drill_path)
 
-            proc = multiprocessing.Process(target=_run_drill, args=(self, to_drill_path))
+            proc = multiprocessing.Process(target=_run_drill, args=(self, fuzz, to_drill_path))
             proc.start()
             self._running_workers.append(proc)
     __call__ = driller_callback
@@ -100,7 +99,7 @@ if __name__ == "__main__":
     # get the input
     input_to_drill = open(path_to_input_to_drill, "r").read()
 
-    d = Driller(binary_path, input_to_drill, fuzzer_bitmap)
+    d = driller.Driller(binary_path, input_to_drill, fuzzer_bitmap)
     count = 0
     for new_input in d.drill_generator():
         id_num = len(os.listdir(driller_queue_dir))
