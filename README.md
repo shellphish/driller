@@ -15,14 +15,14 @@ To see how Driller's invokation was scheduled for the CGC you can look at the Me
 
 ### Current State and Caveats
 
-Driller is currently not in a state than can run easily on a desktop.
-While the code was once in a state where this was possible, it has gone through many iterations.
-The code currently supports two modes:
+The code currently supports three modes of operation:
 
++ A script that facilitates AFL and driller on one machine (over many cores if needed): https://github.com/shellphish/fuzzer/blob/master/shellphuzz
 + A monitor process watches over the fuzzer\_stats file to determine when Driller should be invoked. When Driller looks like it could be useful, the monitor process schedules 'jobs' to work over all the inputs AFL has discovered / deemed interesting.
 + Celery tasks are assigned over a fleet of machines, some number of these tasks are assigned to fuzzing, some are assigned to drilling. Fuzzer tasks monitors the stats file, and invokes driller tasks when Driller looks like it could be useful. Redis is used to sync testcases to the filesystem of the fuzzer.
 
-Driller was built and developed for DECREE binaries. While some support for other formats should work out-of-the-box, expect `TracerMisfollowError`s to occur when unsupported or incorrectly implemented simprocedures are hit.
+Driller was built and developed for DECREE binaries.
+While some support for other formats should work out-of-the-box, expect `TracerMisfollowError`s to occur when unsupported or incorrectly implemented simprocedures are hit.
 
 ### Example
 
