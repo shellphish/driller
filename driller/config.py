@@ -15,6 +15,11 @@ QEMU_DIR=None
 
 # directory containing the binaries, used by the driller node to find binaries
 BINARY_DIR=None
+
+# directory containing AFL instrumented binaries.
+# relative path to BINARY_DIR
+INSTRUMENTED_DIR=None
+
 # directory containing the pcap corpus
 PCAP_DIR=None
 
