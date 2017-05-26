@@ -62,7 +62,7 @@ def start(binary_dir):
 
     l.info("listening for crashes..")
 
-    redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
+    redis_inst = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT)
     p = redis_inst.pubsub()
 
     p.subscribe("crashes")
