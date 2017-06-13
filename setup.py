@@ -22,7 +22,6 @@ setup(
             'angr',
             'redis',
             'celery',
-            'simuvex',
             'archinfo',
             'dpkt-fix',
             'termcolor',

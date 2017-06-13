@@ -1,6 +1,6 @@
 import nose
+import angr
 import driller
-import simuvex
 
 import logging
 l = logging.getLogger("driller.tests.test_driller_simproc")
@@ -15,7 +15,7 @@ def test_simproc_drilling():
     """
 
     binary = "tests/i386/driller_simproc"
-    memcmp = simuvex.procedures.libc___so___6.memcmp.memcmp
+    memcmp = angr.procedures.libc___so___6.memcmp.memcmp
     simprocs = {0x8048200: memcmp}
     # fuzzbitmap says every transition is worth satisfying
     d = driller.Driller(os.path.join(bin_location, binary), "A"*0x80, "\xff"*65535, "whatever~", hooks=simprocs)
