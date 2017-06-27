@@ -27,7 +27,7 @@ class Driller(object):
     Driller object, symbolically follows an input looking for new state transitions
     '''
 
-    def __init__(self, binary, input, fuzz_bitmap = "\xff" * 65535, tag=None, redis=None, hooks=None, argv=None): #pylint:disable=redefined-builtin
+    def __init__(self, binary, input, fuzz_bitmap = "\xff" * 65536, tag=None, redis=None, hooks=None, argv=None): #pylint:disable=redefined-builtin
         '''
         :param binary: the binary to be traced
         :param input: input string to feed to the binary
