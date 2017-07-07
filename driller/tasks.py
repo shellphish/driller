@@ -1,13 +1,15 @@
 import os
 import time
-import pcap
 import redis
 import fuzzer
 import logging
 import hashlib
 import subprocess
 from celery import Celery
-import config
+
+from . import config
+from . import pcap
+
 from .driller import Driller
 
 l = logging.getLogger("driller.tasks")
@@ -39,7 +41,7 @@ def drill(binary, input_data, bitmap_hash, tag):
     driller = Driller(binary_path, input_data, fuzz_bitmap, tag, redis=redis_inst)
     try:
         return driller.drill()
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         l.error("encountered %r exception when drilling into \"%s\"", e, binary)
         l.error("input was %r", input_data)
 
@@ -151,34 +153,34 @@ def fuzz(binary):
     fzr = fuzzer.Fuzzer(binary_path, config.FUZZER_WORK_DIR, config.FUZZER_INSTANCES, seeds=seeds, create_dictionary=True)
 
     early_crash = False
-    try:
-        fzr.start()
+    fzr.start()
 
-        # start a listening for inputs produced by driller
-        start_listener(fzr)
+    # start a listening for inputs produced by driller
+    start_listener(fzr)
 
-        # clean all stale redis data
-        clean_redis(fzr)
+    # clean all stale redis data
+    clean_redis(fzr)
 
-        # list of 'driller request' each is a celery async result object
-        driller_jobs = [ ]
+    # list of 'driller request' each is a celery async result object
+    driller_jobs = [ ]
 
-        # start the fuzzer and poll for a crash, timeout, or driller assistance
-        while not fzr.found_crash() and not fzr.timed_out():
-            # check to see if driller should be invoked
-            if 'fuzzer-1' in fzr.stats and 'pending_favs' in fzr.stats['fuzzer-1']:
-                if not int(fzr.stats['fuzzer-1']['pending_favs']) > 0:
-                    l.info("[%s] driller being requested!", binary)
-                    driller_jobs.extend(request_drilling(fzr))
+    # start the fuzzer and poll for a crash, timeout, or driller assistance
+    while not fzr.found_crash() and not fzr.timed_out():
+        # check to see if driller should be invoked
+        if 'fuzzer-1' in fzr.stats and 'pending_favs' in fzr.stats['fuzzer-1']:
+            if int(fzr.stats['fuzzer-1']['pending_favs']) <= 0:
+                l.info("[%s] driller being requested!", binary)
+                driller_jobs.extend(request_drilling(fzr))
 
-            time.sleep(config.CRASH_CHECK_INTERVAL)
+        time.sleep(config.CRASH_CHECK_INTERVAL)
 
-        # make sure to kill the fuzzers when we're done
-        fzr.kill()
+    # make sure to kill the fuzzers when we're done
+    fzr.kill()
 
-    except fuzzer.EarlyCrash:
-        l.info("binary crashed on dummy testcase, moving on...")
-        early_crash = True
+    # TODO: this exception no longer exists...
+    #except fuzzer.EarlyCrash:
+    #    l.info("binary crashed on dummy testcase, moving on...")
+    #    early_crash = True
 
     # we found a crash!
     if early_crash or fzr.found_crash():
