@@ -159,7 +159,7 @@ class Driller(object):
 
             # mimic AFL's indexing scheme
             if len(branches.missed) > 0:
-                prev_addr = branches.missed[0].addr_trace[-1] # a bit ugly
+                prev_addr = branches.missed[0].history.bbl_addrs[-1] # a bit ugly
                 prev_loc = prev_addr
                 prev_loc = (prev_loc >> 4) ^ (prev_loc << 8)
                 prev_loc &= self.fuzz_bitmap_size - 1
@@ -178,7 +178,7 @@ class Driller(object):
                     if not hit and not self._has_encountered(transition) and not self._has_false(path):
                         t.remove_preconstraints(path)
 
-                        if path.state.satisfiable():
+                        if path.satisfiable():
                             # a completely new state transitions, let's try to accelerate AFL
                             # by finding  a number of deeper inputs
                             l.info("found a completely new transition, exploring to some extent")
@@ -206,7 +206,7 @@ class Driller(object):
         accumulated = 1
 
         p = angr.Project(self.binary)
-        pg = p.factory.path_group(path, immutable=False, hierarchy=False)
+        pg = p.factory.simgr(path, immutable=False, hierarchy=False)
 
         l.info("[%s] started symbolic exploration at %s", self.identifier, time.ctime())
 
@@ -223,8 +223,8 @@ class Driller(object):
         pg.stash(from_stash='deadended', to_stash='active')
         for dumpable in pg.active:
             try:
-                if dumpable.state.satisfiable():
-                    w = self._writeout(dumpable.addr_trace[-1], dumpable)
+                if dumpable.satisfiable():
+                    w = self._writeout(dumpable.history.bbl_addrs[-1], dumpable)
                     if w is not None:
                         yield w
             except IndexError: # if the path we're trying to dump wasn't actually satisfiable
@@ -235,7 +235,7 @@ class Driller(object):
 
     @staticmethod
     def _set_simproc_limits(t):
-        state = t.path_group.one_active.state
+        state = t.simgr.one_active
         state.libc.max_str_len = 1000000
         state.libc.max_strtol_len = 10
         state.libc.max_memcpy_size = 0x100000
@@ -244,7 +244,7 @@ class Driller(object):
 
     @staticmethod
     def _set_concretizations(t):
-        state = t.path_group.one_active.state
+        state = t.simgr.one_active
         flag_vars = set()
         for b in t.cgc_flag_bytes:
             flag_vars.update(b.variables)
@@ -259,11 +259,11 @@ class Driller(object):
     @staticmethod
     def _has_false(path):
         # check if the path is unsat even if we remove preconstraints
-        claripy_false = path.state.se.false
-        if path.state.scratch.guard.cache_key == claripy_false.cache_key:
+        claripy_false = path.se.false
+        if path.scratch.guard.cache_key == claripy_false.cache_key:
             return True
 
-        for c in path.state.se.constraints:
+        for c in path.se.constraints:
             if c.cache_key == claripy_false.cache_key:
                 return True
         return False
@@ -293,12 +293,12 @@ class Driller(object):
         # no redis = no catalogue
 
     def _writeout(self, prev_addr, path):
-        t_pos = path.state.posix.files[0].pos
-        path.state.posix.files[0].seek(0)
+        t_pos = path.posix.files[0].pos
+        path.posix.files[0].seek(0)
         # read up to the length
-        generated = path.state.posix.read_from(0, t_pos)
-        generated = path.state.se.any_str(generated)
-        path.state.posix.files[0].seek(t_pos)
+        generated = path.posix.read_from(0, t_pos)
+        generated = path.se.any_str(generated)
+        path.posix.files[0].seek(t_pos)
 
         key = (len(generated), prev_addr, path.addr)
 
