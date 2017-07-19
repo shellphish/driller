@@ -2,6 +2,7 @@ import os
 import sys
 import signal
 import logging
+import logging.config
 import driller
 import subprocess
 import multiprocessing
@@ -84,6 +85,10 @@ if __name__ == "__main__":
     if len(sys.argv) != 5:
         l.error("INTERNAL USE ONLY -- expecting 5 arguments for driller runner, got %d", len(sys.argv))
 
+    logcfg_file = os.path.join(os.getcwd(), '.driller.ini')
+    if os.path.isfile(logcfg_file):
+        logging.config.fileConfig(logcfg_file)
+
     binary_path, fuzzer_out_dir, bitmap_path, path_to_input_to_drill = sys.argv[1:5]
 
     fuzzer_bitmap = open(bitmap_path, "r").read()
@@ -96,6 +101,7 @@ if __name__ == "__main__":
     try: os.mkdir(driller_queue_dir)
     except OSError: pass
 
+    l.debug('drilling %s', path_to_input_to_drill)
     # get the input
     input_to_drill = open(path_to_input_to_drill, "r").read()
 
