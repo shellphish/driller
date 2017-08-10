@@ -297,7 +297,7 @@ class Driller(object):
         path.posix.files[0].seek(0)
         # read up to the length
         generated = path.posix.read_from(0, t_pos)
-        generated = path.se.any_str(generated)
+        generated = path.se.eval(generated, cast_to=str)
         path.posix.files[0].seek(t_pos)
 
         key = (len(generated), prev_addr, path.addr)
