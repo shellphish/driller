@@ -128,7 +128,7 @@ def clean_redis(fzr):
     redis_inst.delete("%s-traced" % fzr.binary_id)
 
     # delete the finished entry
-    redis_inst.delete("%s-finsihed" % fzr.binary_id)
+    redis_inst.delete("%s-finished" % fzr.binary_id)
 
     # delete the fuzz bitmaps
     redis_inst.delete("%s-bitmaps" % fzr.binary_id)
