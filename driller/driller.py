@@ -160,8 +160,8 @@ class Driller(object):
         # used for finding the right index in the fuzz_bitmap
         prev_loc = 0
 
-        simgr.step()
         while len(simgr.active) > 0 and simgr.active[0].globals['bb_cnt'] < len(r.trace):
+            simgr.step()
 
             # check here to see if a crash has been found
             if self.redis and self.redis.sismember(self.identifier + "-finished", True):
@@ -202,8 +202,6 @@ class Driller(object):
 
                     else:
                         l.debug("%x -> %x has already been encountered", transition[0], transition[1])
-
-            simgr = simgr.step()
 
 ### EXPLORER
     def _symbolic_explorer_stub(self, path):
