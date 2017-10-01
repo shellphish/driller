@@ -23,20 +23,20 @@ class DrillerMisfollowError(Exception):
     pass
 
 class Driller(object):
-    '''
-    Driller object, symbolically follows an input looking for new state transitions
-    '''
+    """
+    Driller object, symbolically follows an input looking for new state transitions.
+    """
 
     def __init__(self, binary, input, fuzz_bitmap=None, tag=None, redis=None, hooks=None, argv=None): #pylint:disable=redefined-builtin
-        '''
-        :param binary: the binary to be traced
-        :param input: input string to feed to the binary
-        :param fuzz_bitmap: AFL's bitmap of state transitions (defaults to empty)
-        :param redis: redis.Redis instance for coordinating multiple Driller instances
-        :param hooks: dictionary of addresses to simprocedures
-        :param argv: Optionally specify argv params (i,e,: ['./calc', 'parm1'])
-            defaults to binary name with no params.
-        '''
+        """
+        :param binary     : The binary to be traced.
+        :param input      : Input string to feed to the binary.
+        :param fuzz_bitmap: AFL's bitmap of state transitions (defaults to empty).
+        :param redis      : redis.Redis instance for coordinating multiple Driller instances.
+        :param hooks      : Dictionary of addresses to simprocedures.
+        :param argv       : Optionally specify argv params (i,e,: ['./calc', 'parm1']),
+                            defaults to binary name with no params.
+        """
 
         self.binary      = binary
         # redis channel identifier
@@ -77,9 +77,9 @@ class Driller(object):
 ### ENVIRONMENT CHECKS AND OBJECT SETUP
 
     def _sane(self):
-        '''
-        make sure the environment will allow us to run without any hitches
-        '''
+        """
+        Make sure the environment will allow us to run without any hitches.
+        """
         ret = True
 
         # check permissions on the binary to ensure it's executable
@@ -92,9 +92,9 @@ class Driller(object):
 ### DRILLING
 
     def drill(self):
-        '''
-        perform the drilling, finding more code coverage based off our existing input base.
-        '''
+        """
+        Perform the drilling, finding more code coverage based off our existing input base.
+        """
 
         if self.redis and self.redis.sismember(self.identifier + '-traced', self.input):
             # don't re-trace the same input
@@ -118,9 +118,9 @@ class Driller(object):
             return self._generated
 
     def drill_generator(self):
-        '''
+        """
         A generator interface to the actual drilling.
-        '''
+        """
 
         # set up alarm for timeouts
         if config.DRILL_TIMEOUT is not None:
@@ -130,19 +130,29 @@ class Driller(object):
             yield i
 
     def _drill_input(self):
-        '''
-        symbolically step down a path with a tracer, trying to concretize inputs for unencountered
+        """
+        Symbolically step down a path with a tracer, trying to concretize inputs for unencountered
         state transitions.
-        '''
+        """
 
         # initialize the tracer
-        t = tracer.Tracer(self.binary, self.input, hooks=self._hooks, argv=self.argv)
+        r = tracer.qemu_runner.QEMURunner(self.binary, self.input, argv=self.argv)
+        p = angr.misc.tracer.make_tracer_project(binary=self.binary, hooks=self._hooks)
+        s = p.factory.tracer_state(input_content=self.input, magic_content=r.magic)
 
-        self._set_concretizations(t)
-        self._set_simproc_limits(t)
+        self._set_concretizations(s)
+
+        simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
+
+        t = angr.exploration_techniques.Tracer(trace=r.trace)
+        c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
+
+        simgr.use_technique(c)
+        simgr.use_technique(t)
+        simgr.use_technique(angr.exploration_techniques.Oppologist())
 
         # update encounters with known state transitions
-        self._encounters.update(izip(t.trace, islice(t.trace, 1, None)))
+        self._encounters.update(izip(r.trace, islice(r.trace, 1, None)))
 
         l.debug("drilling into %r", self.input)
         l.debug("input is %r", self.input)
@@ -150,42 +160,42 @@ class Driller(object):
         # used for finding the right index in the fuzz_bitmap
         prev_loc = 0
 
-        branches = t.next_branch()
-        while len(branches.active) > 0 and t.bb_cnt < len(t.trace):
+        simgr.step()
+        while len(simgr.active) > 0 and simgr.active[0].globals['bb_cnt'] < len(r.trace):
 
             # check here to see if a crash has been found
             if self.redis and self.redis.sismember(self.identifier + "-finished", True):
                 return
 
             # mimic AFL's indexing scheme
-            if len(branches.missed) > 0:
-                prev_addr = branches.missed[0].history.bbl_addrs[-1] # a bit ugly
+            if len(simgr.missed) > 0:
+                prev_addr = simgr.missed[0].history.bbl_addrs[-1] # a bit ugly
                 prev_loc = prev_addr
                 prev_loc = (prev_loc >> 4) ^ (prev_loc << 8)
                 prev_loc &= self.fuzz_bitmap_size - 1
                 prev_loc = prev_loc >> 1
-                for path in branches.missed:
-                    cur_loc = path.addr
+                for state in simgr.missed:
+                    cur_loc = state.addr
                     cur_loc = (cur_loc >> 4) ^ (cur_loc << 8)
                     cur_loc &= self.fuzz_bitmap_size - 1
 
                     hit = bool(ord(self.fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
 
-                    transition = (prev_addr, path.addr)
+                    transition = (prev_addr, state.addr)
 
                     l.debug("found %x -> %x transition", transition[0], transition[1])
 
-                    if not hit and not self._has_encountered(transition) and not self._has_false(path):
-                        t.remove_preconstraints(path)
+                    if not hit and not self._has_encountered(transition) and not self._has_false(state):
+                        state.preconstrainer.remove_preconstraints()
 
-                        if path.satisfiable():
+                        if state.satisfiable():
                             # a completely new state transitions, let's try to accelerate AFL
                             # by finding  a number of deeper inputs
                             l.info("found a completely new transition, exploring to some extent")
-                            w = self._writeout(prev_addr, path)
+                            w = self._writeout(prev_addr, state)
                             if w is not None:
                                 yield w
-                            for i in self._symbolic_explorer_stub(path):
+                            for i in self._symbolic_explorer_stub(state):
                                 yield i
                         else:
                             l.debug("path to %#x was not satisfiable", transition[1])
@@ -193,10 +203,7 @@ class Driller(object):
                     else:
                         l.debug("%x -> %x has already been encountered", transition[0], transition[1])
 
-            try:
-                branches = t.next_branch()
-            except IndexError:
-                branches.active = [ ]
+            simgr = simgr.step()
 
 ### EXPLORER
     def _symbolic_explorer_stub(self, path):
@@ -234,19 +241,9 @@ class Driller(object):
 ### UTILS
 
     @staticmethod
-    def _set_simproc_limits(t):
-        state = t.simgr.one_active
-        state.libc.max_str_len = 1000000
-        state.libc.max_strtol_len = 10
-        state.libc.max_memcpy_size = 0x100000
-        state.libc.max_symbolic_bytes = 100
-        state.libc.max_buffer_size = 0x100000
-
-    @staticmethod
-    def _set_concretizations(t):
-        state = t.simgr.one_active
+    def _set_concretizations(state):
         flag_vars = set()
-        for b in t.cgc_flag_bytes:
+        for b in state.cgc.flag_bytes:
             flag_vars.update(b.variables)
         state.unicorn.always_concretize.update(flag_vars)
         # let's put conservative thresholds for now
@@ -269,15 +266,16 @@ class Driller(object):
         return False
 
     def _in_catalogue(self, length, prev_addr, next_addr):
-        '''
-        check if a generated input has already been generated earlier during the run or by another
+        """
+        Check if a generated input has already been generated earlier during the run or by another
         thread.
 
-        :param length: length of the input
-        :param prev_addr: the source address in the state transition
-        :param next_addr: the destination address in the state transition
-        :return: boolean describing whether or not the input generated is redundant
-        '''
+        :param length   : Length of the input.
+        :param prev_addr: The source address in the state transition.
+        :param next_addr: The destination address in the state transition.
+
+        :return: boolean describing whether or not the input generated is redundant.
+        """
         key = '%x,%x,%x\n' % (length, prev_addr, next_addr)
 
         if self.redis:
