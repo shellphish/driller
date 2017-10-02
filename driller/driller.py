@@ -2,8 +2,6 @@ import logging
 
 l = logging.getLogger("driller.Driller")
 
-import tracer
-
 import angr
 
 import os
@@ -136,7 +134,8 @@ class Driller(object):
         '''
 
         # initialize the tracer
-        t = tracer.Tracer(self.binary, self.input, hooks=self._hooks, argv=self.argv)
+        p = angr.Project(self.binary)
+        t = p.analyses.Tracer(self.input, hooks=self._hooks, argv=self.argv)
 
         self._set_concretizations(t)
         self._set_simproc_limits(t)
