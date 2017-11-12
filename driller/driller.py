@@ -52,8 +52,7 @@ class Driller(object):
         # the simprocedures
         self._hooks = {} if hooks is None else hooks
 
-        # set of encountered basic block transition
-        self._encounters = set()
+        self._core = None
 
         # start time, set by drill method
         self.start_time       = time.time()
@@ -140,19 +139,18 @@ class Driller(object):
         p = angr.misc.tracer.make_tracer_project(binary=self.binary, hooks=self._hooks)
         s = p.factory.tracer_state(input_content=self.input, magic_content=r.magic)
 
-        self._set_concretizations(s)
-
         simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
 
         t = angr.exploration_techniques.Tracer(trace=r.trace)
+        d = angr.exploration_techniques.DrillerCore(trace=r.trace)
         c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode, crash_addr=r.crash_addr)
 
         simgr.use_technique(c)
         simgr.use_technique(t)
         simgr.use_technique(angr.exploration_techniques.Oppologist())
+        simgr.use_technique(d)
 
-        # update encounters with known state transitions
-        self._encounters.update(izip(r.trace, islice(r.trace, 1, None)))
+        self._set_concretizations(simgr.one_active)
 
         l.debug("drilling into %r", self.input)
         l.debug("input is %r", self.input)
@@ -160,50 +158,17 @@ class Driller(object):
         # used for finding the right index in the fuzz_bitmap
         prev_loc = 0
 
-        while len(simgr.active) > 0 and simgr.active[0].globals['bb_cnt'] < len(r.trace):
-            simgr.step()
+        simgr.run()
 
-            # check here to see if a crash has been found
-            if self.redis and self.redis.sismember(self.identifier + "-finished", True):
-                return
-
-            # mimic AFL's indexing scheme
-            if len(simgr.missed) > 0:
-                prev_addr = simgr.missed[0].history.bbl_addrs[-1] # a bit ugly
-                prev_loc = prev_addr
-                prev_loc = (prev_loc >> 4) ^ (prev_loc << 8)
-                prev_loc &= self.fuzz_bitmap_size - 1
-                prev_loc = prev_loc >> 1
-                for state in simgr.missed:
-                    cur_loc = state.addr
-                    cur_loc = (cur_loc >> 4) ^ (cur_loc << 8)
-                    cur_loc &= self.fuzz_bitmap_size - 1
-
-                    hit = bool(ord(self.fuzz_bitmap[cur_loc ^ prev_loc]) ^ 0xff)
-
-                    transition = (prev_addr, state.addr)
-
-                    l.debug("found %x -> %x transition", transition[0], transition[1])
-
-                    if not hit and not self._has_encountered(transition) and not self._has_false(state):
-                        state.preconstrainer.remove_preconstraints()
-
-                        if state.satisfiable():
-                            # a completely new state transitions, let's try to accelerate AFL
-                            # by finding  a number of deeper inputs
-                            l.info("found a completely new transition, exploring to some extent")
-                            w = self._writeout(prev_addr, state)
-                            if w is not None:
-                                yield w
-                            for i in self._symbolic_explorer_stub(state):
-                                yield i
-                        else:
-                            l.debug("path to %#x was not satisfiable", transition[1])
-
-                    else:
-                        l.debug("%x -> %x has already been encountered", transition[0], transition[1])
+        for state in simgr.diverted:
+            w = self._writeout(state.history.bbl_addrs[-1], state)
+            if w is not None:
+                yield w
+            for i in self._symbolic_explorer_stub(state):
+                yield i
 
 ### EXPLORER
+
     def _symbolic_explorer_stub(self, path):
         # create a new path group and step it forward up to 1024 accumulated active paths or steps
 
@@ -235,7 +200,6 @@ class Driller(object):
             except IndexError: # if the path we're trying to dump wasn't actually satisfiable
                 pass
 
-
 ### UTILS
 
     @staticmethod
@@ -247,9 +211,6 @@ class Driller(object):
         # let's put conservative thresholds for now
         state.unicorn.concretization_threshold_memory = 50000
         state.unicorn.concretization_threshold_registers = 50000
-
-    def _has_encountered(self, transition):
-        return transition in self._encounters
 
     @staticmethod
     def _has_false(path):
@@ -301,9 +262,9 @@ class Driller(object):
         # checks here to see if the generation is worth writing to disk
         # if we generate too many inputs which are not really different we'll seriously slow down AFL
         if self._in_catalogue(*key):
+            self._core.encounters.remove((prev_addr, path.addr))
             return
         else:
-            self._encounters.add((prev_addr, path.addr))
             self._add_to_catalogue(*key)
 
         l.info("[%s] dumping input for %x -> %x", self.identifier, prev_addr, path.addr)
