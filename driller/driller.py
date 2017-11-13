@@ -146,7 +146,7 @@ class Driller(object):
         accumulated = 1
 
         p = angr.Project(self.binary)
-        simgr = p.factory.simgr(path, immutable=False, hierarchy=False)
+        simgr = p.factory.simgr(state, immutable=False, hierarchy=False)
 
         l.debug("[%s] started symbolic exploration at %s.", self.identifier, time.ctime())
 
@@ -242,7 +242,7 @@ class Driller(object):
             self.redis.publish(channel, pickle.dumps({'meta': key, 'data': generated, "tag": self.tag}))
 
         else:
-            l.debug("Generated: %s!", generated.encode('hex'))
+            l.debug("Generated: %s", generated.encode('hex'))
 
         return (key, generated)
 
