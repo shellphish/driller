@@ -14,10 +14,6 @@ from . import config
 l = logging.getLogger("driller.driller")
 
 
-class DrillerEnvironmentError(Exception):
-    pass
-
-
 class Driller(object):
     """
     Driller object, symbolically follows an input looking for new state transitions.
@@ -63,26 +59,6 @@ class Driller(object):
         l.info("[%s] drilling started on %s", self.identifier, time.ctime(self.start_time))
 
         self.fuzz_bitmap_size = len(self.fuzz_bitmap)
-
-        # setup directories for the driller and perform sanity checks on the directory structure here
-        if not self._sane():
-            l.error("[%s] environment or parameters are unfit for a driller run", self.identifier)
-            raise DrillerEnvironmentError
-
-### ENVIRONMENT CHECKS AND OBJECT SETUP
-
-    def _sane(self):
-        """
-        Make sure the environment will allow us to run without any hitches.
-        """
-        ret = True
-
-        # check permissions on the binary to ensure it's executable
-        if not os.access(self.binary, os.X_OK):
-            l.error("passed binary file is not executable")
-            ret = False
-
-        return ret
 
 ### DRILLING
 
