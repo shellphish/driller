@@ -127,15 +127,24 @@ class Driller(object):
         l.debug("Drilling into %r.", self.input)
         l.debug("Input is %r.", self.input)
 
-        simgr.run()
+        while simgr.active and simgr.one_active.globals['bb_cnt'] < len(r.trace):
+            simgr.step()
 
-        for state in simgr.diverted:
-            l.debug("Found a diverted state, explorting to some extent.")
-            w = self._writeout(state.history.bbl_addrs[-1], state)
-            if w is not None:
-                yield w
-            for i in self._symbolic_explorer_stub(state):
-                yield i
+            # Check here to see if a crash has been found.
+            if self.redis and self.redis.sismember(self.identifier + '-finished', True):
+                return
+
+            if 'diverted' not in simgr.stashes:
+                continue
+
+            while simgr.diverted:
+                state = simgr.diverted.pop(0)
+                l.debug("Found a diverted state, exploring to some extent.")
+                w = self._writeout(state.history.bbl_addrs[-1], state)
+                if w is not None:
+                    yield w
+                for i in self._symbolic_explorer_stub(state):
+                    yield i
 
 ### EXPLORER
 
