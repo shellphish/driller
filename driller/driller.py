@@ -1,26 +1,22 @@
-import logging
-
-l = logging.getLogger("driller.Driller")
-
-import tracer
-
-import angr
-
 import os
 import time
 import signal
+import hashlib
 import resource
 import cPickle as pickle
-from itertools import islice, izip
-import hashlib
+import logging
 
+import angr
+import tracer
 import config #pylint:disable=relative-import
+
+
+l = logging.getLogger("driller.driller")
+
 
 class DrillerEnvironmentError(Exception):
     pass
 
-class DrillerMisfollowError(Exception):
-    pass
 
 class Driller(object):
     """
