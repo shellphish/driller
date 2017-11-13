@@ -8,7 +8,7 @@ import logging
 
 import angr
 import tracer
-import config #pylint:disable=relative-import
+from . import config
 
 
 l = logging.getLogger("driller.driller")
@@ -23,10 +23,10 @@ class Driller(object):
     Driller object, symbolically follows an input looking for new state transitions.
     """
 
-    def __init__(self, binary, input, fuzz_bitmap=None, tag=None, redis=None, hooks=None, argv=None): #pylint:disable=redefined-builtin
+    def __init__(self, binary, input_str, fuzz_bitmap=None, tag=None, redis=None, hooks=None, argv=None):
         """
         :param binary     : The binary to be traced.
-        :param input      : Input string to feed to the binary.
+        :param input_str  : Input string to feed to the binary.
         :param fuzz_bitmap: AFL's bitmap of state transitions (defaults to empty).
         :param redis      : redis.Redis instance for coordinating multiple Driller instances.
         :param hooks      : Dictionary of addresses to simprocedures.
@@ -37,7 +37,7 @@ class Driller(object):
         self.binary      = binary
         # redis channel identifier
         self.identifier  = os.path.basename(binary)
-        self.input       = input
+        self.input       = input_str
         self.fuzz_bitmap = fuzz_bitmap or "\xff"*65535
         self.tag         = tag
         self.redis       = redis
