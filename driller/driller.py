@@ -108,7 +108,14 @@ class Driller(object):
 
         # initialize the tracer
         r = tracer.qemu_runner.QEMURunner(self.binary, self.input, argv=self.argv)
-        p = angr.misc.tracer.make_tracer_project(binary=self.binary, hooks=self._hooks)
+        p = angr.Project(self.binary)
+        for addr, proc in self._hooks.items():
+            p.hook(addr, proc)
+            l.debug("Hooking %#x -> %s...", addr, proc.display_name)
+
+        if p.loader.main_object.os == 'cgc':
+            p._simos.syscall_library.procedures.update(angr.TRACER_CGC_SYSCALLS)
+
         s = p.factory.tracer_state(input_content=self.input, magic_content=r.magic)
 
         simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
