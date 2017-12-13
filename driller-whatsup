@@ -29,7 +29,7 @@ def collect_stats(d):
 def main(argv):
 
     if (len(argv) < 2):
-        print "usage: %s <driller_dir>"
+        print "usage: %s <driller_dir>" % argv[0]
         return 1
 
     driller_dir = argv[1]
