@@ -114,7 +114,7 @@ class Driller(object):
             l.debug("Hooking %#x -> %s...", addr, proc.display_name)
 
         if p.loader.main_object.os == 'cgc':
-            p._simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
+            p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
 
         s = p.factory.tracer_state(input_content=self.input, magic_content=r.magic)
 
