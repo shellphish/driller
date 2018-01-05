@@ -190,11 +190,12 @@ class Driller(object):
 
     @staticmethod
     def _set_concretizations(state):
-        flag_vars = set()
-        for b in state.cgc.flag_bytes:
-            flag_vars.update(b.variables)
+        if state.project.loader.main_object.os == 'cgc':
+            flag_vars = set()
+            for b in state.cgc.flag_bytes:
+                flag_vars.update(b.variables)
 
-        state.unicorn.always_concretize.update(flag_vars)
+            state.unicorn.always_concretize.update(flag_vars)
 
         # Let's put conservative thresholds for now.
         state.unicorn.concretization_threshold_memory = 50000
