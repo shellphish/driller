@@ -2,10 +2,9 @@ import os
 import sys
 import signal
 import logging
+import driller #pylint:disable=relative-import,unused-import
 import subprocess
 import multiprocessing
-
-from .driller import Driller
 
 l = logging.getLogger("local_callback")
 
@@ -85,7 +84,6 @@ if __name__ == "__main__":
     if len(sys.argv) != 5:
         l.error("INTERNAL USE ONLY -- expecting 5 arguments for driller runner, got %d", len(sys.argv))
 
-    # pylint: disable=unbalanced-tuple-unpacking
     binary_path, fuzzer_out_dir, bitmap_path, path_to_input_to_drill = sys.argv[1:5]
 
     fuzzer_bitmap = open(bitmap_path, "r").read()
@@ -101,7 +99,7 @@ if __name__ == "__main__":
     # get the input
     input_to_drill = open(path_to_input_to_drill, "r").read()
 
-    d = Driller(binary_path, input_to_drill, fuzzer_bitmap)
+    d = driller.Driller(binary_path, input_to_drill, fuzzer_bitmap)
     count = 0
     for new_input in d.drill_generator():
         id_num = len(os.listdir(driller_queue_dir))
