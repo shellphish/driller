@@ -2,7 +2,7 @@ import os
 import sys
 import signal
 import logging
-import driller #pylint:disable=relative-import,unused-import
+import driller
 import subprocess
 import multiprocessing
 

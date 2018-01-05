@@ -10,7 +10,7 @@ from celery import Celery
 from . import config
 from . import pcap
 
-from .driller import Driller
+from .driller_main import Driller
 
 l = logging.getLogger("driller.tasks")
 
