@@ -116,15 +116,20 @@ class Driller(object):
         if p.loader.main_object.os == 'cgc':
             p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
 
-        s = p.factory.tracer_state(input_content=self.input, magic_content=r.magic)
+            s = p.factory.entry_state(stdin=angr.storage.file.SimFileStream, flag_page=r.magic)
+        else:
+            s = p.factory.full_init_state(stdin=angr.storage.file.SimFileStream)
+
+        s.preconstrainer.preconstrain_file(self.input, s.posix.stdin, True)
 
         simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
 
         t = angr.exploration_techniques.Tracer(trace=r.trace)
-        c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode, crash_addr=r.crash_addr)
+        c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_addr=r.crash_addr)
         self._core = angr.exploration_techniques.DrillerCore(trace=r.trace)
 
-        simgr.use_technique(c)
+        if r.crash_mode:
+            simgr.use_technique(c)
         simgr.use_technique(t)
         simgr.use_technique(angr.exploration_techniques.Oppologist())
         simgr.use_technique(self._core)
@@ -229,13 +234,8 @@ class Driller(object):
         # No redis = no catalogue.
 
     def _writeout(self, prev_addr, state):
-        t_pos = state.posix.files[0].pos
-        state.posix.files[0].seek(0)
-
-        # Read up to the length.
-        generated = state.posix.read_from(0, t_pos)
+        generated = state.posix.stdin.load(0, state.posix.stdin.pos)
         generated = state.se.eval(generated, cast_to=str)
-        state.posix.files[0].seek(t_pos)
 
         key = (len(generated), prev_addr, state.addr)
 
@@ -243,7 +243,7 @@ class Driller(object):
         # If we generate too many inputs which are not really different we'll seriously slow down AFL.
         if self._in_catalogue(*key):
             self._core.encounters.remove((prev_addr, state.addr))
-            return
+            return None
 
         else:
             self._add_to_catalogue(*key)
