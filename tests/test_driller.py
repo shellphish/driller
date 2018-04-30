@@ -7,7 +7,7 @@ import angr
 import driller
 
 
-l = logging.getLogger("driller.driller").setLevel('DEBUG')
+l = logging.getLogger("driller.driller")
 
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries'))
@@ -66,8 +66,9 @@ def run_all():
 
 
 if __name__ == "__main__":
+    l.setLevel('DEBUG')
+
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
-
     else:
         run_all()

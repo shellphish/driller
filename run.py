@@ -2,12 +2,7 @@
 
 import logging
 
-# silence these loggers
-logging.getLogger().setLevel("CRITICAL")
-logging.getLogger("driller.fuzz").setLevel("INFO")
-
 l = logging.getLogger("driller")
-l.setLevel("INFO")
 
 import os
 import sys
@@ -74,6 +69,9 @@ def start(binary_dir):
             cnt += 1
 
 def main(argv):
+    logging.getLogger().setLevel("CRITICAL")
+    logging.getLogger("driller.fuzz").setLevel("INFO")
+    l.setLevel("INFO")
 
     if len(argv) < 2:
         print "usage: %s <binary_dir>" % argv[0]

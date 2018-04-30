@@ -10,7 +10,6 @@ import driller.config as config
 import logging
 
 l = logging.getLogger("driller.node")
-l.setLevel("INFO")
 
 def check_exec(d, p):
     path = os.path.join(d, p)
@@ -53,6 +52,7 @@ def fuzzer_node(n, outfile, errfile):
             subprocess.Popen(args, stdout=o, stderr=e)
 
 def main(argv):
+    l.setLevel("INFO")
 
     if nodeprofile.DRILLER_WORKERS:
         driller_node(nodeprofile.DRILLER_WORKERS, "driller-out.log", "driller-err.log")
