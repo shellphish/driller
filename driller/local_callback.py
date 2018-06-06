@@ -3,12 +3,13 @@ import sys
 import signal
 import logging
 import driller
+import argparse
 import subprocess
 import multiprocessing
 
 l = logging.getLogger("local_callback")
 
-def _run_drill(drill, fuzz, _path_to_input_to_drill):
+def _run_drill(drill, fuzz, _path_to_input_to_drill, length_extension=None):
     _binary_path = fuzz.binary_path
     _fuzzer_out_dir = fuzz.out_dir
     _bitmap_path = os.path.join(_fuzzer_out_dir, 'fuzzer-master', "fuzz_bitmap")
@@ -19,6 +20,8 @@ def _run_drill(drill, fuzz, _path_to_input_to_drill):
         sys.executable, os.path.abspath(__file__),
         _binary_path, _fuzzer_out_dir, _bitmap_path, _path_to_input_to_drill
     )
+    if length_extension:
+        args += ('--length-extension', str(length_extension))
 
     p = subprocess.Popen(args, stdout=subprocess.PIPE)
     print p.communicate()
@@ -67,7 +70,8 @@ class LocalCallback(object):
             not_drilled.remove(to_drill_path)
             self._already_drilled_inputs.add(to_drill_path)
 
-            proc = multiprocessing.Process(target=_run_drill, args=(self, fuzz, to_drill_path))
+            proc = multiprocessing.Process(target=_run_drill, args=(self, fuzz, to_drill_path),
+                    kwargs={'length_extension': self._length_extension})
             proc.start()
             self._running_workers.append(proc)
     __call__ = driller_callback
