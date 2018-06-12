@@ -2,6 +2,7 @@ import os
 import sys
 import signal
 import logging
+import logging.config
 import driller
 import argparse
 import subprocess
@@ -94,6 +95,12 @@ if __name__ == "__main__":
     parser.add_argument('--length-extension', help="Try extending inputs to driller by this many bytes", type=int)
     args = parser.parse_args()
 
+    logcfg_file = os.path.join(os.getcwd(), '.driller.ini')
+    if os.path.isfile(logcfg_file):
+        logging.config.fileConfig(logcfg_file)
+
+    binary_path, fuzzer_out_dir, bitmap_path, path_to_input_to_drill = sys.argv[1:5]
+
     fuzzer_bitmap = open(args.bitmap_path, "r").read()
 
     # create a folder
@@ -104,6 +111,7 @@ if __name__ == "__main__":
     try: os.mkdir(driller_queue_dir)
     except OSError: pass
 
+    l.debug('drilling %s', path_to_input_to_drill)
     # get the input
     inputs_to_drill = [open(args.path_to_input_to_drill, "r").read()]
     if args.length_extension:
