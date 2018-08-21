@@ -1,7 +1,6 @@
 import os
 import sys
 import signal
-import logging
 import logging.config
 import driller
 import argparse
@@ -25,7 +24,7 @@ def _run_drill(drill, fuzz, _path_to_input_to_drill, length_extension=None):
         args += ('--length-extension', str(length_extension))
 
     p = subprocess.Popen(args, stdout=subprocess.PIPE)
-    print p.communicate()
+    print(p.communicate())
 
 
 class LocalCallback(object):
@@ -128,4 +127,4 @@ if __name__ == "__main__":
             with open(filepath, "wb") as f:
                 f.write(new_input[1])
             count += 1
-    l.warning("found %d new inputs", count)
+        l.warning("found %d new inputs", count)

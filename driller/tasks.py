@@ -52,13 +52,13 @@ def input_filter(fuzzer_dir, inputs):
     traced_inputs = set()
     if os.path.isfile(traced_cache):
         with open(traced_cache, 'rb') as f:
-            traced_inputs = set(f.read().split('\n'))
+            traced_inputs = set(f.read().split(b'\n'))
 
     new_inputs = filter(lambda i: i not in traced_inputs, inputs)
 
     with open(traced_cache, 'ab') as f:
         for new_input in new_inputs:
-            f.write("%s\n" % new_input)
+            f.write(b"%s\n" % new_input)
 
     return new_inputs
 

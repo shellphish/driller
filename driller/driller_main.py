@@ -3,8 +3,9 @@ import time
 import signal
 import hashlib
 import resource
-import cPickle as pickle
+import pickle
 import logging
+import binascii
 
 import angr
 import tracer
@@ -116,9 +117,9 @@ class Driller(object):
         if p.loader.main_object.os == 'cgc':
             p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
 
-            s = p.factory.entry_state(stdin=angr.storage.file.SimFileStream, flag_page=r.magic)
+            s = p.factory.entry_state(stdin=angr.SimFileStream, flag_page=r.magic)
         else:
-            s = p.factory.full_init_state(stdin=angr.storage.file.SimFileStream)
+            s = p.factory.full_init_state(stdin=angr.SimFileStream)
 
         s.preconstrainer.preconstrain_file(self.input, s.posix.stdin, True)
 
@@ -235,7 +236,7 @@ class Driller(object):
 
     def _writeout(self, prev_addr, state):
         generated = state.posix.stdin.load(0, state.posix.stdin.pos)
-        generated = state.se.eval(generated, cast_to=str)
+        generated = state.se.eval(generated, cast_to=bytes)
 
         key = (len(generated), prev_addr, state.addr)
 
@@ -259,7 +260,7 @@ class Driller(object):
             self.redis.publish(channel, pickle.dumps({'meta': key, 'data': generated, "tag": self.tag}))
 
         else:
-            l.debug("Generated: %s", generated.encode('hex'))
+            l.debug("Generated: %s", binascii.hexlify(generated))
 
         return (key, generated)
 

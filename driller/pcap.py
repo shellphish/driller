@@ -14,7 +14,7 @@ def _connection_streams(filename):
         if tcp.data == '': 
             continue
 
-        is_recv = ip.dst == '\x7f\x00\x00\x01'
+        is_recv = ip.dst == b'\x7f\x00\x00\x01'
         key = (tcp.sport, tcp.dport) if is_recv else (tcp.dport, tcp.sport)
         if key not in lookup:
             lookup[key] = len(out)
