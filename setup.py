@@ -23,7 +23,7 @@ setup(
             'redis',
             'celery',
             'archinfo',
-            'dpkt-fix',
+            'dpkt',
             'termcolor',
         ],
 )

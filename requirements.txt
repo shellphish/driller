@@ -3,7 +3,7 @@ angr
 redis
 celery
 archinfo
-dpkt-fix
+dpkt
 termcolor
 git+https://github.com/angr/tracer.git#egg=tracer
 git+https://github.com/shellphish/fuzzer.git#egg=fuzzer
