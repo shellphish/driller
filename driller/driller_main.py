@@ -123,7 +123,7 @@ class Driller(object):
 
         s.preconstrainer.preconstrain_file(self.input, s.posix.stdin, True)
 
-        simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
+        simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
 
         t = angr.exploration_techniques.Tracer(trace=r.trace)
         c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_addr=r.crash_addr)
@@ -168,7 +168,7 @@ class Driller(object):
         accumulated = 1
 
         p = angr.Project(self.binary)
-        simgr = p.factory.simgr(state, immutable=False, hierarchy=False)
+        simgr = p.factory.simulation_manager(state, immutable=False, hierarchy=False)
 
         l.debug("[%s] started symbolic exploration at %s.", self.identifier, time.ctime())
 
