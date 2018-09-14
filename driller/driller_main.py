@@ -236,7 +236,7 @@ class Driller(object):
 
     def _writeout(self, prev_addr, state):
         generated = state.posix.stdin.load(0, state.posix.stdin.pos)
-        generated = state.se.eval(generated, cast_to=bytes)
+        generated = state.solver.eval(generated, cast_to=bytes)
 
         key = (len(generated), prev_addr, state.addr)
 
