@@ -168,7 +168,7 @@ class Driller(object):
         accumulated = 1
 
         p = angr.Project(self.binary)
-        simgr = p.factory.simulation_manager(state, immutable=False, hierarchy=False)
+        simgr = p.factory.simulation_manager(state, hierarchy=False)
 
         l.debug("[%s] started symbolic exploration at %s.", self.identifier, time.ctime())
 
