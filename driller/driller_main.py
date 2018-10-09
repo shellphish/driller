@@ -125,12 +125,9 @@ class Driller(object):
 
         simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
 
-        t = angr.exploration_techniques.Tracer(trace=r.trace)
-        c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_addr=r.crash_addr)
+        t = angr.exploration_techniques.Tracer(trace=r.trace, crash_addr=r.crash_addr)
         self._core = angr.exploration_techniques.DrillerCore(trace=r.trace)
 
-        if r.crash_mode:
-            simgr.use_technique(c)
         simgr.use_technique(t)
         simgr.use_technique(angr.exploration_techniques.Oppologist())
         simgr.use_technique(self._core)
@@ -140,7 +137,7 @@ class Driller(object):
         l.debug("Drilling into %r.", self.input)
         l.debug("Input is %r.", self.input)
 
-        while simgr.active and simgr.one_active.globals['bb_cnt'] < len(r.trace):
+        while simgr.active and simgr.one_active.globals['trace_idx'] < len(r.trace) - 1:
             simgr.step()
 
             # Check here to see if a crash has been found.
