@@ -125,7 +125,7 @@ class Driller(object):
 
         simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
 
-        t = angr.exploration_techniques.Tracer(trace=r.trace, crash_addr=r.crash_addr)
+        t = angr.exploration_techniques.Tracer(trace=r.trace, crash_addr=r.crash_addr, copy_states=True)
         self._core = angr.exploration_techniques.DrillerCore(trace=r.trace)
 
         simgr.use_technique(t)
