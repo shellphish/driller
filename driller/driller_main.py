@@ -166,7 +166,10 @@ class Driller(object):
 
         p = state.project
         state = state.copy()
-        state.options.remove(angr.options.LAZY_SOLVES)
+        try:
+            state.options.remove(angr.options.LAZY_SOLVES)
+        except KeyError:
+            pass
         simgr = p.factory.simulation_manager(state, hierarchy=False)
 
         l.debug("[%s] started symbolic exploration at %s.", self.identifier, time.ctime())
