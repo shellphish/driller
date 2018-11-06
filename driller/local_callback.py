@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
     binary_path, fuzzer_out_dir, bitmap_path, path_to_input_to_drill = sys.argv[1:5]
 
-    fuzzer_bitmap = open(args.bitmap_path, "r").read()
+    fuzzer_bitmap = open(args.bitmap_path, "rb").read()
 
     # create a folder
     driller_dir = os.path.join(args.fuzzer_out_dir, "driller")
@@ -112,7 +112,7 @@ if __name__ == "__main__":
 
     l.debug('drilling %s', path_to_input_to_drill)
     # get the input
-    inputs_to_drill = [open(args.path_to_input_to_drill, "r").read()]
+    inputs_to_drill = [open(args.path_to_input_to_drill, "rb").read()]
     if args.length_extension:
         inputs_to_drill.append(inputs_to_drill[0] + '\0' * args.length_extension)
 
