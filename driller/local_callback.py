@@ -114,7 +114,7 @@ if __name__ == "__main__":
     # get the input
     inputs_to_drill = [open(args.path_to_input_to_drill, "rb").read()]
     if args.length_extension:
-        inputs_to_drill.append(inputs_to_drill[0] + '\0' * args.length_extension)
+        inputs_to_drill.append(inputs_to_drill[0] + b'\0' * args.length_extension)
 
     for input_to_drill in inputs_to_drill:
         d = driller.Driller(args.binary_path, input_to_drill, fuzzer_bitmap)
