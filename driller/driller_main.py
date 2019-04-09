@@ -183,7 +183,9 @@ class Driller(object):
 
         l.debug("[%s] stopped symbolic exploration at %s.", self.identifier, time.ctime())
 
-        for dumpable in simgr.deadended:
+        # DO NOT think this is the same as using only the deadended stashes. this merges deadended and active
+        simgr.stash(from_stash='deadended', to_stash='active')
+        for dumpable in simgr.active:
             try:
                 if dumpable.satisfiable():
                     w = self._writeout(dumpable.history.bbl_addrs[-1], dumpable)
