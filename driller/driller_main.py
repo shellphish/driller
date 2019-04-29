@@ -117,9 +117,9 @@ class Driller(object):
         if p.loader.main_object.os == 'cgc':
             p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
 
-            s = p.factory.entry_state(stdin=angr.SimFileStream, flag_page=r.magic)
+            s = p.factory.entry_state(stdin=angr.SimFileStream, flag_page=r.magic, mode='tracing')
         else:
-            s = p.factory.full_init_state(stdin=angr.SimFileStream)
+            s = p.factory.full_init_state(stdin=angr.SimFileStream, mode='tracing')
 
         s.preconstrainer.preconstrain_file(self.input, s.posix.stdin, True)
 
