@@ -1,6 +1,5 @@
 import os
 import sys
-import nose
 import logging
 
 import angr
@@ -47,7 +46,7 @@ def test_simproc_drilling():
 
     # Make sure driller produced a new input which satisfies the memcmp.
     password = b"the_secret_password_is_here_you_will_never_guess_it_especially_since_it_is_going_to_be_made_lower_case"
-    nose.tools.assert_true(any(filter(lambda x: x[1].startswith(password), new_inputs)))
+    assert any(filter(lambda x: x[1].startswith(password), new_inputs))
 
 
 def run_all():
