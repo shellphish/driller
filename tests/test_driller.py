@@ -25,10 +25,10 @@ def test_drilling_cgc():
 
     new_inputs = d.drill()
 
-    nose.tools.assert_equal(len(new_inputs), 7)
+    assert len(new_inputs) == 7
 
     # Make sure driller produced a new input which hits the easter egg.
-    nose.tools.assert_true(any(filter(lambda x: x[1].startswith(b'^'), new_inputs)))
+    assert any(filter(lambda x: x[1].startswith(b'^'), new_inputs))
 
 
 def test_simproc_drilling():
